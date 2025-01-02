@@ -145,6 +145,8 @@ void jhook_set_limit(size_t min_limit, size_t max_limit);
 ### jhook举例说明(直接运行)
 
 * jhook检查可以不用gdb，直接监测内存的变化，如下例子编译运行
+    * check_cycle: check_cycle为几秒检测一次
+    * check_tofile: 设置为 `y` 时输出到文件 `heap_memory_info.<pid>.log` 而不是终端
 
 ```sh
 $ make O=obj check_cycle=10 # check_cycle为几秒检测一次

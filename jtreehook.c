@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <sys/types.h>
 #include <execinfo.h> // only for glibc
 #include "jtree.h"
 
@@ -27,6 +28,15 @@ void jhook_check_leak(int choice);
 
 #ifndef CHECK_FLAG
 #define CHECK_FLAG  0       // 检查线程默认是否开启检查
+#endif
+
+#ifndef JHOOK_FILE
+#define JHOOK_FILE  0       // jhook_check_leak是否输出到文件
+#endif
+#if JHOOK_FILE
+#define PRINT_INFO(fmt, ...)    fprintf(mgr->fp, fmt, ##__VA_ARGS__)
+#else
+#define PRINT_INFO(fmt, ...)    printf(fmt, ##__VA_ARGS__)
 #endif
 
 typedef struct {
@@ -67,6 +77,9 @@ typedef struct {
     struct jtree_root node_root;  // 挂载jhook_node_t的红黑树根节点
     pthread_mutex_t mtx;    // 互斥锁
     pthread_t       tid;    // 检查线程
+#if JHOOK_FILE
+    FILE *fp;               // 写入文件流
+#endif
 } jhook_mgr_t;
 
 static jhook_mgr_t s_jhook_mgr;
@@ -86,9 +99,9 @@ static void jhook_backtrace(size_t size, void *addr)
 
         if (syms) {
             int i = 0;
-            printf("---------------backtrace : %p---------------\n", addr);
+            PRINT_INFO("---------------backtrace : %p---------------\n", addr);
             for (i = 2; i < num; ++i) {
-                printf("%s\n", syms[i]);
+                PRINT_INFO("%s\n", syms[i]);
             }
             free(syms);
         }
@@ -226,6 +239,29 @@ int jhook_init(int tail_num)
     pthread_create(&mgr->tid, &attr, jhook_worker, NULL);
     pthread_attr_destroy(&attr);
 
+#if JHOOK_FILE
+    char fname[128] = {0};
+    char buf[1024] = {0};
+    int size = 0;
+    unsigned long pid = (unsigned long)getpid();
+
+    snprintf(fname, sizeof(fname), "/proc/%lu/cmdline", pid);
+    mgr->fp = fopen(fname, "r");
+    if (mgr->fp) {
+        size = (int)fread(buf, 1, sizeof(buf) - 1, mgr->fp);
+        fclose(mgr->fp);
+        mgr->fp = NULL;
+    }
+
+    snprintf(fname, sizeof(fname), "heap_memory_info.%lu.log", pid);
+    mgr->fp = fopen(fname, "a");
+    if (!mgr->fp) {
+        return -1;
+    }
+    if (size > 0) {
+        PRINT_INFO("%lu:%s\n", pid, buf);
+    }
+#endif
     return 0;
 }
 
@@ -244,6 +280,12 @@ void jhook_uninit(void)
     pthread_mutex_unlock(&mgr->mtx);
     pthread_mutex_destroy(&mgr->mtx);
     pthread_join(mgr->tid, NULL);
+#if JHOOK_FILE
+    if (mgr->fp) {
+        fclose(mgr->fp);
+        mgr->fp = NULL;
+    }
+#endif
 }
 
 void jhook_start(void)
@@ -306,7 +348,7 @@ void jhook_check_bound(void)
         if (memcmp(mgr->checks, (char *)data->ptr + node->size, mgr->tail_num) != 0) {
             enabled = mgr->enabled;
             mgr->enabled = 0;
-            printf("\033[31mptr(%p size=%u addr=%p|%p) out of bound!\033[0m\n", data->ptr,
+            PRINT_INFO("\033[31mptr(%p size=%u addr=%p|%p) out of bound!\033[0m\n", data->ptr,
                 (uint32_t)node->size, node->addrs[0], node->addrs[1]);
             mgr->enabled = enabled;
         }
@@ -317,7 +359,7 @@ end:
 
 void jhook_check_leak(int choice)
 {
-#define PRINT_NODE(node)    printf("%-8u %-8u %-8u %-8u %p|%p\n", \
+#define PRINT_NODE(node)        PRINT_INFO("%-8u %-8u %-8u %-8u %p|%p\n", \
     (uint32_t)node->size, node->alloc, node->free, node->alloc - node->free, node->addrs[0], node->addrs[1])
 
     jhook_mgr_t *mgr = &s_jhook_mgr;
@@ -346,8 +388,8 @@ void jhook_check_leak(int choice)
     if (!nodes)
         return;
 
-    printf("--------------------------------------------------------\n");
-    printf("%-8s %-8s %-8s %-8s addr\n", "size", "alloc", "free", "diff");
+    PRINT_INFO("--------------------------------------------------------\n");
+    PRINT_INFO("%-8s %-8s %-8s %-8s addr\n", "size", "alloc", "free", "diff");
     switch (choice) {
     case 0:
         for (i = 0; i < cnt; ++i) {
@@ -397,8 +439,12 @@ void jhook_check_leak(int choice)
         }
         break;
     }
-    printf("----------- total=%-10u peak=%-10u -----------\n", (uint32_t)mgr->total_size, (uint32_t)mgr->peak_size);
+    PRINT_INFO("----------- total=%-10u peak=%-10u -----------\n", (uint32_t)mgr->total_size, (uint32_t)mgr->peak_size);
+
     __libc_free(nodes);
+#if JHOOK_FILE
+    fflush(mgr->fp);
+#endif
 }
 
 void jhook_set_flag(int dup_flag, int bound_flag)

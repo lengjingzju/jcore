@@ -14,8 +14,10 @@ VSRCS          := jwraphook.c
 INC_MAKES      := app
 include inc.makes
 
+ifeq ($(check_tofile),y)
+CPFLAGS        += -DJHOOK_FILE
+endif
 ifneq ($(check_cycle), )
-CHECK_INFO     += check_cycle=$(check_cycle)
 CPFLAGS        += -DCHECK_COUNT=$(shell expr $(check_cycle) \* 100) -DCHECK_FLAG=1
 endif
 
