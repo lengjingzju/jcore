@@ -10,6 +10,7 @@ PACKAGE_NAME    = jcore
 all:
 	@echo "Build $(PACKAGE_NAME) Done!"
 
+VSRCS          := jwraphook.c
 INC_MAKES      := app
 include inc.makes
 
@@ -21,6 +22,13 @@ endif
 $(call set_flags,CFLAGS,jhook.c jlisthook.c jtreehook.c,-O0 -g)
 $(eval $(call add-libso-build,libjlisthook.so,jhook.c jlisthook.c,-pthread))
 $(eval $(call add-libso-build,libjtreehook.so,jhook.c jtreehook.c jtree.c,-pthread))
+
+# If you want to debug a static executable, you need to add the following WRAP_LDFLAGS when compiling:
+WRAP_LDFLAGS   := -Wl,--wrap=free -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=strdup -Wl,--wrap=strndup -ljtreewrap -pthread
+$(call set_flags,CFLAGS,jwraphook.c,-O0 -g -DJHOOK_WRAP)
+$(eval $(call compile_vobj,c,$$(CCC),jwraphook.c,jhook.c))
+$(eval $(call add-liba-build,libjlistwrap.a,jwraphook.c jlisthook.c))
+$(eval $(call add-liba-build,libjtreewrap.a,jwraphook.c jtreehook.c jtree.c))
 
 all: $(LIB_TARGETS)
 
