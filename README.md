@@ -18,7 +18,7 @@ JCore致力于提供C语言最实用的数据结构、工具、算法。目前�
 ### 编译方式
 
 ```sh
-make O=obj check_cycle=10 check_tofile=n check_unwind=n
+make O=obj check_cycle=10 check_tofile=n check_unwind=n check_depth=1
 ```
 
 * [IMake](https://github.com/lengjingzju/cbuild-ng) 变量
@@ -32,6 +32,8 @@ make O=obj check_cycle=10 check_tofile=n check_unwind=n
         * 设置为 `y` 时输出到文件 `heap_memory_info.<pid>.log` 而不是终端
     * check_unwind=<y|n>: 是否使用libunwind记录栈信息，默认是n，没有依赖其它包，不会记录函数名和偏移量
         * 设置为 `y` 时需要依赖 [libunwind](https://github.com/libunwind/libunwind)
+    * check_depth=N: 记录的调用栈深度，默认值为1
+        * 如果check_unwind未设置为y，check_depth为1时使用__builtin_return_address记录，大于1时使用backtrace记录
 
 ### jhook接口说明
 
@@ -165,65 +167,66 @@ void jhook_set_limit(size_t min_limit, size_t max_limit);
 * jhook检查可以不用gdb，直接监测内存的变化，如下例子编译运行
 
 ```sh
-$ make O=obj check_cycle=10 # check_cycle为几秒检测一次
+$ make O=obj check_cycle=10
 $ LD_PRELOAD=obj/libjtreehook.so curl www.bing.com
 --------------------------------------------------------
 size     alloc    free     diff     addr
-12       15       1        14       0x7f88e131438f|(nil)
-16       1        0        1        0x7f88e13b8d1f|(nil)
-16       3        0        3        0x7f88e13b915a|(nil)
-20       1        0        1        0x7f88e13b8e45|(nil)
-22       2        0        2        0x7f88e13b8e45|(nil)
-23       3        0        3        0x7f88e13b8e45|(nil)
-24       3        0        3        0x7f88e138ef94|(nil)
-24       3        0        3        0x7f88e13b890e|(nil)
-24       1        0        1        0x7f88e13b8e45|(nil)
-25       3        0        3        0x7f88e13b8e45|(nil)
-26       1        0        1        0x7f88e13b8e45|(nil)
-32       1        0        1        0x7f88e1313ca0|(nil)
-38       1        0        1        0x7f88e15685b8|(nil)
-38       1        0        1        0x7f88e157a5df|(nil)
-40       1        0        1        0x7f88e15685b8|(nil)
-40       1        0        1        0x7f88e157a5df|(nil)
-48       1        0        1        0x7f88e15685b8|(nil)
-48       1        0        1        0x7f88e157a5df|(nil)
-51       4        0        4        0x7f88e13b83f7|(nil)
-52       2        0        2        0x7f88e13b83f7|(nil)
-54       10       0        10       0x7f88e13b83f7|(nil)
-56       2        0        2        0x7f88e13b83f7|(nil)
-56       1        0        1        0x7f88e156ac4a|(nil)
-62       1        0        1        0x7f88e13b83f7|(nil)
-72       2        0        2        0x7f88e156ac4a|(nil)
-80       2        0        2        0x7f88e12a6a4f|(nil)
-88       2        0        2        0x7f88e12a6a4f|(nil)
-88       1        0        1        0x7f88e13b6d7f|(nil)
-104      4        0        4        0x7f88e12a6a4f|(nil)
-112      2        0        2        0x7f88e12a6a4f|(nil)
-116      1        0        1        0x7f88e1313f55|(nil)
-120      2        0        2        0x7f88e12a6a4f|(nil)
-120      2        0        2        0x7f88e12a737a|(nil)
-168      2        0        2        0x7f88e12a6a4f|(nil)
-192      2        0        2        0x7f88e12a6a4f|(nil)
-192      2        0        2        0x7f88e156e31d|(nil)
-216      2        0        2        0x7f88e12a6a4f|(nil)
-240      1        0        1        0x7f88e156e31d|(nil)
-281      1        0        1        0x7f88e12a55c8|(nil)
-336      1        0        1        0x7f88e156f9db|(nil)
-432      2        0        2        0x7f88e12a6a4f|(nil)
-776      1        0        1        0x7f88e12a6a4f|(nil)
-784      1        0        1        0x7f88e12a6a4f|(nil)
-1200     1        0        1        0x7f88e1568284|(nil)
-1202     1        0        1        0x7f88e1568284|(nil)
-1210     1        0        1        0x7f88e1568284|(nil)
-1336     2        0        2        0x7f88e12a6a4f|(nil)
-1560     1        0        1        0x7f88e13b2775|(nil)
+12       15       1        14       0x7f88e131438f
+16       1        0        1        0x7f88e13b8d1f
+16       3        0        3        0x7f88e13b915a
+20       1        0        1        0x7f88e13b8e45
+22       2        0        2        0x7f88e13b8e45
+23       3        0        3        0x7f88e13b8e45
+24       3        0        3        0x7f88e138ef94
+24       3        0        3        0x7f88e13b890e
+24       1        0        1        0x7f88e13b8e45
+25       3        0        3        0x7f88e13b8e45
+26       1        0        1        0x7f88e13b8e45
+32       1        0        1        0x7f88e1313ca0
+38       1        0        1        0x7f88e15685b8
+38       1        0        1        0x7f88e157a5df
+40       1        0        1        0x7f88e15685b8
+40       1        0        1        0x7f88e157a5df
+48       1        0        1        0x7f88e15685b8
+48       1        0        1        0x7f88e157a5df
+51       4        0        4        0x7f88e13b83f7
+52       2        0        2        0x7f88e13b83f7
+54       10       0        10       0x7f88e13b83f7
+56       2        0        2        0x7f88e13b83f7
+56       1        0        1        0x7f88e156ac4a
+62       1        0        1        0x7f88e13b83f7
+72       2        0        2        0x7f88e156ac4a
+80       2        0        2        0x7f88e12a6a4f
+88       2        0        2        0x7f88e12a6a4f
+88       1        0        1        0x7f88e13b6d7f
+104      4        0        4        0x7f88e12a6a4f
+112      2        0        2        0x7f88e12a6a4f
+116      1        0        1        0x7f88e1313f55
+120      2        0        2        0x7f88e12a6a4f
+120      2        0        2        0x7f88e12a737a
+168      2        0        2        0x7f88e12a6a4f
+192      2        0        2        0x7f88e12a6a4f
+192      2        0        2        0x7f88e156e31d
+216      2        0        2        0x7f88e12a6a4f
+240      1        0        1        0x7f88e156e31d
+281      1        0        1        0x7f88e12a55c8
+336      1        0        1        0x7f88e156f9db
+432      2        0        2        0x7f88e12a6a4f
+776      1        0        1        0x7f88e12a6a4f
+784      1        0        1        0x7f88e12a6a4f
+1200     1        0        1        0x7f88e1568284
+1202     1        0        1        0x7f88e1568284
+1210     1        0        1        0x7f88e1568284
+1336     2        0        2        0x7f88e12a6a4f
+1560     1        0        1        0x7f88e13b2775
 ----------- total=17485      peak=336755     -----------
 ```
 
 * 使用libunwind记录栈信息
 
 ```
-$ make O=obj check_cycle=10 check_unwind=y
+$ make O=obj check_cycle=10 check_unwind=y check_depth=2
+$ LD_PRELOAD=obj/libjtreehook.so curl www.bing.com
 --------------------------------------------------------
 size     alloc    free     diff     addr
 12       12       0        12       0x7f4ba141038f:(__strdup+0x1f) | 0x7f4ba13a1948:(setlocale+0x268)
@@ -281,7 +284,7 @@ size     alloc    free     diff     addr
 ### jhook举例说明(gdb)
 
 * 使用 `backtrace` 记录2层调用
-    * 启动方式也可以如下
+    * 启动方式也可以如下(推荐)
 
     ```sh
     $ gdb ./jini_test                                   # 正常启动gdb
@@ -290,6 +293,7 @@ size     alloc    free     diff     addr
     ```
 
 ```sh
+$ make O=obj check_depth=2
 $ gdb --args env LD_PRELOAD=./libjtreehook.so ./jini_test
 ...
 (gdb) b main                    # 在main函数断点，准备初始化统计结构信息
@@ -372,22 +376,22 @@ size     alloc    free     diff     addr
 (gdb) call jhook_check_leak(0)
 --------------------------------------------------------
 size     alloc    free     diff     addr
-2        2        0        2        0x555555555e82|(nil)
-3        1        0        1        0x555555555e82|(nil)
-5        2        0        2        0x555555555cce|(nil)
-5        1        0        1        0x555555555e82|(nil)
-6        5        0        5        0x555555555d33|(nil)
-8        2        0        2        0x555555555d33|(nil)
-9        1        0        1        0x55555555667b|(nil)
-10       2        0        2        0x555555555e82|(nil)
-13       1        0        1        0x555555555e82|(nil)
-14       1        0        1        0x555555556045|(nil)
-32       2        0        2        0x555555555cba|(nil)
-32       7        0        7        0x555555555d1f|(nil)
-32       1        0        1        0x555555556616|(nil)
-48       1        0        1        0x555555557122|(nil)
-1024     1        0        1        0x7ffff7e38d04|(nil)
-8192     1        0        1        0x555555557136|(nil)
+2        2        0        2        0x555555555e82
+3        1        0        1        0x555555555e82
+5        2        0        2        0x555555555cce
+5        1        0        1        0x555555555e82
+6        5        0        5        0x555555555d33
+8        2        0        2        0x555555555d33
+9        1        0        1        0x55555555667b
+10       2        0        2        0x555555555e82
+13       1        0        1        0x555555555e82
+14       1        0        1        0x555555556045
+32       2        0        2        0x555555555cba
+32       7        0        7        0x555555555d1f
+32       1        0        1        0x555555556616
+48       1        0        1        0x555555557122
+1024     1        0        1        0x7ffff7e38d04
+8192     1        0        1        0x555555557136
 ----------- total=9708       peak=9708       -----------
 (gdb) x /x 0x555555557136
 0x555555557136 <jfcache_open+70>:	0x24448949

@@ -20,8 +20,11 @@ endif
 ifneq ($(check_cycle), )
 CPFLAGS        += -DCHECK_COUNT=$(shell expr $(check_cycle) \* 100) -DCHECK_FLAG=1
 endif
+ifneq ($(check_depth),)
+CPFLAGS        += -DJHOOK_DEPTH=$(check_depth)
+endif
 ifeq ($(check_unwind),y)
-CPFLAGS        += -DJHOOK_UNWIND
+CPFLAGS        += -DJHOOK_UNWIND -Wno-unused-parameter
 HOOK_LDFLAGS   += -lunwind
 WRAP_LDFLAGS   += -lunwind
 endif

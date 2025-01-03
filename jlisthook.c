@@ -45,7 +45,13 @@ void jhook_check_leak(int choice);
 #if JHOOK_UNWIND
 #define UNW_LOCAL_ONLY      // 只需要本地线程栈
 #include <libunwind.h>
+#define JHOOK_FSIZE   256   // 记录函数名的buffer长度
 #endif
+
+#ifndef JHOOK_DEPTH
+#define JHOOK_DEPTH     1   // 记录调用栈的深度
+#endif
+#define JHOOK_DJUMP     2   // 记录栈跳过的深度，忽略前几层无用的栈
 
 typedef struct {
     struct jslist list;     // 链表成员
@@ -56,11 +62,10 @@ typedef struct {
     struct jslist list;     // 链表成员
     struct jslist_head head;// 挂载jhook_data_t的链表头
     size_t size;            // 记录分配内存的大小
-    void *addrs[2];         // 记录堆函数的调用栈(只记2层)
+    void *addrs[JHOOK_DEPTH];               // 记录堆函数的调用栈(只记2层)
 #if JHOOK_UNWIND
-#define JHOOK_FUNC_LEN      128
-    char func[2][JHOOK_FUNC_LEN];   // 记录函数名称
-    unw_word_t offset[2];   // 记录函数偏移
+    char func[JHOOK_DEPTH][JHOOK_FSIZE];    // 记录函数名称
+    unw_word_t offset[JHOOK_DEPTH];         // 记录函数偏移
 #endif
     uint32_t alloc;         // 记录内存分配的次数
     uint32_t free;          // 记录内存释放的次数
@@ -97,7 +102,7 @@ void jhook_unwind(void **addrs, jhook_node_t *node)
     unw_context_t ctx = {0};
     unw_cursor_t cursor = {0};
     unw_word_t pc = 0;
-    int ret = 0, i = 0;
+    int ret = 0, i = -JHOOK_DJUMP;
 
     ret = unw_getcontext(&ctx);
     if(ret != 0) {
@@ -110,24 +115,28 @@ void jhook_unwind(void **addrs, jhook_node_t *node)
 
     if (!node) {
         while (unw_step(&cursor) > 0) {
-            if (i == 2 || i == 3) {
-                unw_get_reg(&cursor, UNW_REG_IP, &pc);
-                addrs[i - 2] = (void *)pc;
-            } else if (i > 3) {
+            if (i >= JHOOK_DEPTH) {
                 break;
+            } else if (i >= 0) {
+                unw_get_reg(&cursor, UNW_REG_IP, &pc);
+                addrs[i] = (void *)pc;
             }
             ++i;
         }
     } else {
         while (unw_step(&cursor) > 0) {
-            if (i == 2 || i == 3) {
-                node->func[i - 2][0] = '\0';
-                node->offset[i - 2] = 0;
-                ret = unw_get_proc_name(&cursor, &node->func[i - 2][0], JHOOK_FUNC_LEN, &node->offset[i - 2]);
-            } else if (i > 3) {
+            if (i >= JHOOK_DEPTH) {
                 break;
+            } else if (i >= 0) {
+                node->func[i][0] = '\0';
+                node->offset[i] = 0;
+                ret = unw_get_proc_name(&cursor, &node->func[i][0], JHOOK_FSIZE, &node->offset[i]);
             }
             ++i;
+        }
+        for ( ; i < JHOOK_DEPTH; ++i) {
+            node->func[i][0] = '\0';
+            node->offset[i] = 0;
         }
     }
 }
@@ -147,7 +156,7 @@ static void jhook_backtrace(jhook_node_t *node)
     unw_word_t offset = 0;
     unw_word_t pc = 0;
     char func[256] = {0};
-    int ret = 0;
+    int ret = 0, i = -JHOOK_DJUMP;
 
     PRINT_INFO("---------------backtrace : %p---------------\n", node->addrs[0]);
 
@@ -164,13 +173,18 @@ static void jhook_backtrace(jhook_node_t *node)
     }
 
     while (unw_step(&cursor) > 0) {
+        if (i < 0) {
+            ++i;
+            continue;
+        }
         ret = unw_get_proc_name(&cursor, func, sizeof(func), &offset);
         if(ret != 0) {
-            PRINT_INFO("unw_get_proc_name failed!\n");
+            PRINT_INFO("%d: unw_get_proc_name failed!\n", i);
         } else {
             unw_get_reg(&cursor, UNW_REG_IP, &pc);
-            PRINT_INFO("0x%lx:(%s+0x%lx)\n", pc, func, offset);
+            PRINT_INFO("%d: 0x%lx:(%s+0x%lx)\n", i, pc, func, offset);
         }
+        ++i;
     }
 
 end:
@@ -196,8 +210,8 @@ static void jhook_backtrace(jhook_node_t *node)
     if (syms) {
         int i = 0;
         PRINT_INFO("---------------backtrace : %p---------------\n", node->addrs[0]);
-        for (i = 2; i < num; ++i) {
-            PRINT_INFO("%s\n", syms[i]);
+        for (i = JHOOK_DJUMP; i < num; ++i) {
+            PRINT_INFO("%d: %s\n", i - JHOOK_DJUMP, syms[i]);
         }
         free(syms);
     }
@@ -246,7 +260,11 @@ int jhook_init(int tail_num)
     mgr->bound_flag = 0;
     mgr->check_flag = CHECK_FLAG;
     mgr->check_count = CHECK_COUNT;
+#if JHOOK_DEPTH > 1
+    mgr->method = 1;
+#else
     mgr->method = 0;
+#endif
     mgr->min_limit = 0;
     mgr->max_limit = 1 << 30;
     mgr->total_size = 0;
@@ -349,7 +367,7 @@ void jhook_check_bound(void)
     jhook_mgr_t *mgr = &s_jhook_mgr;
     jhook_node_t *node = NULL;
     jhook_data_t *data = NULL;
-    int enabled = 0;
+    int enabled = 0, i = 0;
 
     if (!mgr->inited)
         return;
@@ -364,12 +382,21 @@ void jhook_check_bound(void)
                 enabled = mgr->enabled;
                 mgr->enabled = 0;
 #if JHOOK_UNWIND
-                PRINT_INFO("\033[31mptr(%p size=%u %p:(%s+0x%lx) | %p:(%s+0x%lx) out of bound!\033[0m\n",
-                    data->ptr, (uint32_t)node->size, node->addrs[0], node->func[0], node->offset[0],
-                    node->addrs[1], node->func[1], node->offset[1]);
+                PRINT_INFO("\033[31mptr(%p size=%u %p:(%s+0x%lx)", data->ptr, (uint32_t)node->size,
+                    node->addrs[0], node->func[0], node->offset[0]);
+                for (i = 1; i < JHOOK_DEPTH; ++i) {
+                    if (!node->addrs[i]) break;
+                    PRINT_INFO(" | %p:(%s+0x%lx)", node->addrs[i], node->func[i], node->offset[i]);
+                }
+                PRINT_INFO(" out of bound!\033[0m\n");
+
 #else
-                PRINT_INFO("\033[31mptr(%p size=%u addr=%p|%p) out of bound!\033[0m\n",
-                    data->ptr, (uint32_t)node->size, node->addrs[0], node->addrs[1]);
+                PRINT_INFO("\033[31mptr(%p size=%u addr=%p", data->ptr, (uint32_t)node->size, node->addrs[0]);
+                for (i = 1; i < JHOOK_DEPTH; ++i) {
+                    if (!node->addrs[i]) break;
+                    PRINT_INFO("|%p", node->addrs[i]);
+                }
+                PRINT_INFO(") out of bound!\033[0m\n");
 #endif
                 mgr->enabled = enabled;
             }
@@ -382,18 +409,31 @@ end:
 void jhook_check_leak(int choice)
 {
 #if JHOOK_UNWIND
-#define PRINT_NODE(node)        PRINT_INFO("%-8u %-8u %-8u %-8u %p:(%s+0x%lx) | %p:(%s+0x%lx)\n", \
-    (uint32_t)node->size, node->alloc, node->free, node->alloc - node->free, \
-    node->addrs[0], node->func[0], node->offset[0], node->addrs[1], node->func[1], node->offset[1])
+#define PRINT_NODE(node)        do {                                                                \
+    PRINT_INFO("%-8u %-8u %-8u %-8u %p:(%s+0x%lx)", (uint32_t)node->size, node->alloc, node->free,  \
+        node->alloc - node->free, node->addrs[0], node->func[0], node->offset[0]);                  \
+    for (j = 1; j < JHOOK_DEPTH; ++j) {                                                             \
+        if (!node->addrs[j]) break;                                                                 \
+        PRINT_INFO(" | %p:(%s+0x%lx)", node->addrs[j], node->func[j], node->offset[j]);             \
+    }                                                                                               \
+    PRINT_INFO("\n");                                                                               \
+} while (0)
 #else
-#define PRINT_NODE(node)        PRINT_INFO("%-8u %-8u %-8u %-8u %p|%p\n", \
-    (uint32_t)node->size, node->alloc, node->free, node->alloc - node->free, node->addrs[0], node->addrs[1])
+#define PRINT_NODE(node)        do {                                                                \
+    PRINT_INFO("%-8u %-8u %-8u %-8u %p", (uint32_t)node->size, node->alloc, node->free,             \
+        node->alloc - node->free, node->addrs[0]);                                                  \
+    for (j = 1; j < JHOOK_DEPTH; ++j) {                                                             \
+        if (!node->addrs[j]) break;                                                                 \
+        PRINT_INFO("|%p", node->addrs[j]);                                                          \
+    }                                                                                               \
+    PRINT_INFO("\n");                                                                               \
+} while (0)
 #endif
 
     jhook_mgr_t *mgr = &s_jhook_mgr;
     jhook_node_t *node = NULL;
     jhook_node_t *nodes = NULL;
-    int i = 0, cnt = 0, num = 0;
+    int i = 0, j = 0, cnt = 0, num = 0;
 
     if (!mgr->inited)
         return;
@@ -514,12 +554,11 @@ void jhook_set_limit(size_t min_limit, size_t max_limit)
 
 void jhook_addptr(void *ptr, size_t size, void *addr)
 {
-#define MAX_BACKTRACE   4
-
     jhook_mgr_t *mgr = &s_jhook_mgr;
     jhook_node_t *node = NULL;
     jhook_data_t *p = NULL, *pos = NULL, *n = NULL;
-    void *addrs[MAX_BACKTRACE] = {NULL};
+    void *addrs[JHOOK_DJUMP + JHOOK_DEPTH] = {NULL};
+    int csize = JHOOK_DEPTH * sizeof(void *);
 
     if (!mgr->enabled)
         return;
@@ -534,14 +573,14 @@ void jhook_addptr(void *ptr, size_t size, void *addr)
     }
 
 #if JHOOK_UNWIND
-    jhook_unwind(&addrs[2], NULL);
+    jhook_unwind(&addrs[JHOOK_DJUMP], NULL);
 #else
     if (mgr->method) {
         mgr->enabled = 0;
-        backtrace(addrs, MAX_BACKTRACE);
+        backtrace(addrs, JHOOK_DJUMP + JHOOK_DEPTH);
         mgr->enabled = 1;
     } else {
-        addrs[2] = addr;
+        addrs[JHOOK_DJUMP] = addr;
     }
 #endif
 
@@ -571,7 +610,7 @@ next:
     pos->ptr = ptr;
 
     jslist_for_each_entry(node, &mgr->head, list) {
-        if (node->size == size && node->addrs[0] == addrs[2] && node->addrs[1] == addrs[3]) {
+        if (node->size == size && memcmp(&node->addrs[0], &addrs[JHOOK_DJUMP], csize) == 0) {
             ++node->alloc;
             node->changed = 1;
             jslist_add_head_tail(&pos->list, &node->head);
@@ -587,8 +626,7 @@ next:
     }
     jslist_init_head(&node->head);
     node->size = size;
-    node->addrs[0] = addrs[2];
-    node->addrs[1] = addrs[3];
+    memcpy(&node->addrs[0], &addrs[JHOOK_DJUMP], csize);
     node->alloc = 1;
     node->free = 0;
     node->changed = 1;
@@ -598,11 +636,11 @@ next:
 #if JHOOK_UNWIND
     jhook_unwind(NULL, node);
 #endif
+    jhook_backtrace(node);
 
 end:
     if (mgr->peak_size < mgr->total_size)
         mgr->peak_size = mgr->total_size;
-    jhook_backtrace(node);
     pthread_mutex_unlock(&mgr->mtx);
 }
 
