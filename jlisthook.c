@@ -23,20 +23,28 @@ void jhook_check_leak(int choice);
 #define CHECK_BYTE  0x55
 
 #ifndef CHECK_COUNT
-#define CHECK_COUNT 1000    // 检查线程的默认执行时间(CHECK_COUNT * 10ms)
+#define CHECK_COUNT  1000   // 检查线程的默认执行时间(CHECK_COUNT * 10ms)
 #endif
 
 #ifndef CHECK_FLAG
-#define CHECK_FLAG  0       // 检查线程默认是否开启检查
+#define CHECK_FLAG      0   // 检查线程默认是否开启检查
 #endif
 
 #ifndef JHOOK_FILE
-#define JHOOK_FILE  0       // jhook_check_leak是否输出到文件
+#define JHOOK_FILE      0   // jhook_check_leak是否输出到文件
 #endif
 #if JHOOK_FILE
 #define PRINT_INFO(fmt, ...)    fprintf(mgr->fp, fmt, ##__VA_ARGS__)
 #else
 #define PRINT_INFO(fmt, ...)    printf(fmt, ##__VA_ARGS__)
+#endif
+
+#ifndef JHOOK_UNWIND
+#define JHOOK_UNWIND    0   // jhook_check_leak是否输出到文件
+#endif
+#if JHOOK_UNWIND
+#define UNW_LOCAL_ONLY      // 只需要本地线程栈
+#include <libunwind.h>
 #endif
 
 typedef struct {
@@ -49,6 +57,11 @@ typedef struct {
     struct jslist_head head;// 挂载jhook_data_t的链表头
     size_t size;            // 记录分配内存的大小
     void *addrs[2];         // 记录堆函数的调用栈(只记2层)
+#if JHOOK_UNWIND
+#define JHOOK_FUNC_LEN      128
+    char func[2][JHOOK_FUNC_LEN];   // 记录函数名称
+    unw_word_t offset[2];   // 记录函数偏移
+#endif
     uint32_t alloc;         // 记录内存分配的次数
     uint32_t free;          // 记录内存释放的次数
     uint32_t changed;       // 记录有内存申请释放的变动
@@ -78,31 +91,120 @@ typedef struct {
 
 static jhook_mgr_t s_jhook_mgr;
 
+#if JHOOK_UNWIND
+void jhook_unwind(void **addrs, jhook_node_t *node)
+{
+    unw_context_t ctx = {0};
+    unw_cursor_t cursor = {0};
+    unw_word_t pc = 0;
+    int ret = 0, i = 0;
+
+    ret = unw_getcontext(&ctx);
+    if(ret != 0) {
+        return;
+    }
+    ret = unw_init_local(&cursor, &ctx);
+    if(ret != 0) {
+        return;
+    }
+
+    if (!node) {
+        while (unw_step(&cursor) > 0) {
+            if (i == 2 || i == 3) {
+                unw_get_reg(&cursor, UNW_REG_IP, &pc);
+                addrs[i - 2] = (void *)pc;
+            } else if (i > 3) {
+                break;
+            }
+            ++i;
+        }
+    } else {
+        while (unw_step(&cursor) > 0) {
+            if (i == 2 || i == 3) {
+                node->func[i - 2][0] = '\0';
+                node->offset[i - 2] = 0;
+                ret = unw_get_proc_name(&cursor, &node->func[i - 2][0], JHOOK_FUNC_LEN, &node->offset[i - 2]);
+            } else if (i > 3) {
+                break;
+            }
+            ++i;
+        }
+    }
+}
+
 static size_t s_jhook_watch_size = 0;
-static void jhook_backtrace(size_t size, void *addr)
+static void jhook_backtrace(jhook_node_t *node)
+{
+    jhook_mgr_t *mgr = &s_jhook_mgr;
+
+    if (!node || node->size != s_jhook_watch_size)
+        return;
+
+    mgr->enabled = 0;
+
+    unw_context_t ctx = {0};
+    unw_cursor_t cursor = {0};
+    unw_word_t offset = 0;
+    unw_word_t pc = 0;
+    char func[256] = {0};
+    int ret = 0;
+
+    PRINT_INFO("---------------backtrace : %p---------------\n", node->addrs[0]);
+
+    ret = unw_getcontext(&ctx);
+    if(ret != 0) {
+        PRINT_INFO("unw_getcontext failed!\n");
+        goto end;
+    }
+
+    ret = unw_init_local(&cursor, &ctx);
+    if(ret != 0) {
+        PRINT_INFO("unw_init_local failed!\n");
+        goto end;
+    }
+
+    while (unw_step(&cursor) > 0) {
+        ret = unw_get_proc_name(&cursor, func, sizeof(func), &offset);
+        if(ret != 0) {
+            PRINT_INFO("unw_get_proc_name failed!\n");
+        } else {
+            unw_get_reg(&cursor, UNW_REG_IP, &pc);
+            PRINT_INFO("0x%lx:(%s+0x%lx)\n", pc, func, offset);
+        }
+    }
+
+end:
+    mgr->enabled = 1;
+}
+#else
+
+static size_t s_jhook_watch_size = 0;
+static void jhook_backtrace(jhook_node_t *node)
 {
 #define MAX_BACKTRACE_LV    100
     jhook_mgr_t *mgr = &s_jhook_mgr;
 
-    if (size == s_jhook_watch_size) {
-        mgr->enabled = 0;
+    if (!node || node->size != s_jhook_watch_size)
+        return;
 
-        void *addrs[MAX_BACKTRACE_LV] = {NULL};
-        int num = backtrace(addrs, MAX_BACKTRACE_LV);
-        char **syms = backtrace_symbols(addrs, num); // 获取人类可读的符号，使用完后要free(syms)
+    mgr->enabled = 0;
 
-        if (syms) {
-            int i = 0;
-            PRINT_INFO("---------------backtrace : %p---------------\n", addr);
-            for (i = 2; i < num; ++i) {
-                PRINT_INFO("%s\n", syms[i]);
-            }
-            free(syms);
+    void *addrs[MAX_BACKTRACE_LV] = {NULL};
+    int num = backtrace(addrs, MAX_BACKTRACE_LV);
+    char **syms = backtrace_symbols(addrs, num); // 获取人类可读的符号，使用完后要free(syms)
+
+    if (syms) {
+        int i = 0;
+        PRINT_INFO("---------------backtrace : %p---------------\n", node->addrs[0]);
+        for (i = 2; i < num; ++i) {
+            PRINT_INFO("%s\n", syms[i]);
         }
-
-        mgr->enabled = 1;
+        free(syms);
     }
+
+    mgr->enabled = 1;
 }
+#endif
 
 static void *jhook_worker(void *arg __attribute__((unused)))
 {
@@ -261,8 +363,14 @@ void jhook_check_bound(void)
             if (memcmp(mgr->checks, (char *)data->ptr + node->size, mgr->tail_num) != 0) {
                 enabled = mgr->enabled;
                 mgr->enabled = 0;
-                PRINT_INFO("\033[31mptr(%p size=%u addr=%p|%p) out of bound!\033[0m\n", data->ptr,
-                    (uint32_t)node->size, node->addrs[0], node->addrs[1]);
+#if JHOOK_UNWIND
+                PRINT_INFO("\033[31mptr(%p size=%u %p:(%s+0x%lx) | %p:(%s+0x%lx) out of bound!\033[0m\n",
+                    data->ptr, (uint32_t)node->size, node->addrs[0], node->func[0], node->offset[0],
+                    node->addrs[1], node->func[1], node->offset[1]);
+#else
+                PRINT_INFO("\033[31mptr(%p size=%u addr=%p|%p) out of bound!\033[0m\n",
+                    data->ptr, (uint32_t)node->size, node->addrs[0], node->addrs[1]);
+#endif
                 mgr->enabled = enabled;
             }
         }
@@ -273,8 +381,14 @@ end:
 
 void jhook_check_leak(int choice)
 {
+#if JHOOK_UNWIND
+#define PRINT_NODE(node)        PRINT_INFO("%-8u %-8u %-8u %-8u %p:(%s+0x%lx) | %p:(%s+0x%lx)\n", \
+    (uint32_t)node->size, node->alloc, node->free, node->alloc - node->free, \
+    node->addrs[0], node->func[0], node->offset[0], node->addrs[1], node->func[1], node->offset[1])
+#else
 #define PRINT_NODE(node)        PRINT_INFO("%-8u %-8u %-8u %-8u %p|%p\n", \
     (uint32_t)node->size, node->alloc, node->free, node->alloc - node->free, node->addrs[0], node->addrs[1])
+#endif
 
     jhook_mgr_t *mgr = &s_jhook_mgr;
     jhook_node_t *node = NULL;
@@ -419,6 +533,9 @@ void jhook_addptr(void *ptr, size_t size, void *addr)
         return;
     }
 
+#if JHOOK_UNWIND
+    jhook_unwind(&addrs[2], NULL);
+#else
     if (mgr->method) {
         mgr->enabled = 0;
         backtrace(addrs, MAX_BACKTRACE);
@@ -426,7 +543,7 @@ void jhook_addptr(void *ptr, size_t size, void *addr)
     } else {
         addrs[2] = addr;
     }
-    jhook_backtrace(size, addrs[2]);
+#endif
 
     if (mgr->tail_num)
         memset((char *)ptr + size, CHECK_BYTE, mgr->tail_num);
@@ -478,10 +595,14 @@ next:
     jslist_add_head_tail(&node->list, &mgr->head);
     jslist_add_head_tail(&pos->list, &node->head);
     mgr->total_size += node->size;
+#if JHOOK_UNWIND
+    jhook_unwind(NULL, node);
+#endif
 
 end:
     if (mgr->peak_size < mgr->total_size)
         mgr->peak_size = mgr->total_size;
+    jhook_backtrace(node);
     pthread_mutex_unlock(&mgr->mtx);
 }
 

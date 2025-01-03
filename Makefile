@@ -20,13 +20,20 @@ endif
 ifneq ($(check_cycle), )
 CPFLAGS        += -DCHECK_COUNT=$(shell expr $(check_cycle) \* 100) -DCHECK_FLAG=1
 endif
+ifeq ($(check_unwind),y)
+CPFLAGS        += -DJHOOK_UNWIND
+HOOK_LDFLAGS   += -lunwind
+WRAP_LDFLAGS   += -lunwind
+endif
 
+HOOK_LDFLAGS   += -pthread
 $(call set_flags,CFLAGS,jhook.c jlisthook.c jtreehook.c,-O0 -g)
-$(eval $(call add-libso-build,libjlisthook.so,jhook.c jlisthook.c,-pthread))
-$(eval $(call add-libso-build,libjtreehook.so,jhook.c jtreehook.c jtree.c,-pthread))
+$(eval $(call add-libso-build,libjlisthook.so,jhook.c jlisthook.c,$(HOOK_LDFLAGS)))
+$(eval $(call add-libso-build,libjtreehook.so,jhook.c jtreehook.c jtree.c,$(HOOK_LDFLAGS)))
 
 # If you want to debug a static executable, you need to add the following WRAP_LDFLAGS when compiling:
-WRAP_LDFLAGS   := -Wl,--wrap=free -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=strdup -Wl,--wrap=strndup -ljtreewrap -pthread
+WRAP_LDFLAGS   += -ljtreewrap -pthread
+WRAP_LDFLAGS   += -Wl,--wrap=free -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=strdup -Wl,--wrap=strndup
 $(call set_flags,CFLAGS,jwraphook.c,-O0 -g -DJHOOK_WRAP)
 $(eval $(call compile_vobj,c,$$(CCC),jwraphook.c,jhook.c))
 $(eval $(call add-liba-build,libjlistwrap.a,jwraphook.c jlisthook.c))

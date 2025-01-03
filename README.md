@@ -15,6 +15,24 @@ JCore致力于提供C语言最实用的数据结构、工具、算法。目前�
 
 注：用户也可以使用开源工具 `valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all <bin>` 命令查找内存泄漏.
 
+### 编译方式
+
+```sh
+make O=obj check_cycle=10 check_tofile=n check_unwind=n
+```
+
+* [IMake](https://github.com/lengjingzju/cbuild-ng) 变量
+    * O=xxx: 指定编译输出目录
+    * DESTDIR=xxx: 指定安装目录
+    * DEPDIR=xxx: 指定依赖包的根目录
+* 私有变量
+    * check_cycle=N: check_cycle为几秒检测一次，默认为10s
+        * make传入此变量会创建一个线程每N秒检测一次内存情况，否则线程空转不检测
+    * check_tofile=<y|n>: 输出到文件还是终端，默认是n，输出到文件
+        * 设置为 `y` 时输出到文件 `heap_memory_info.<pid>.log` 而不是终端
+    * check_unwind=<y|n>: 是否使用libunwind记录栈信息，默认是n，没有依赖其它包，不会记录函数名和偏移量
+        * 设置为 `y` 时需要依赖 [libunwind](https://github.com/libunwind/libunwind)
+
 ### jhook接口说明
 
 * `jhook_init`
@@ -145,8 +163,6 @@ void jhook_set_limit(size_t min_limit, size_t max_limit);
 ### jhook举例说明(直接运行)
 
 * jhook检查可以不用gdb，直接监测内存的变化，如下例子编译运行
-    * check_cycle: check_cycle为几秒检测一次
-    * check_tofile: 设置为 `y` 时输出到文件 `heap_memory_info.<pid>.log` 而不是终端
 
 ```sh
 $ make O=obj check_cycle=10 # check_cycle为几秒检测一次
@@ -202,6 +218,64 @@ size     alloc    free     diff     addr
 1336     2        0        2        0x7f88e12a6a4f|(nil)
 1560     1        0        1        0x7f88e13b2775|(nil)
 ----------- total=17485      peak=336755     -----------
+```
+
+* 使用libunwind记录栈信息
+
+```
+$ make O=obj check_cycle=10 check_unwind=y
+--------------------------------------------------------
+size     alloc    free     diff     addr
+12       12       0        12       0x7f4ba141038f:(__strdup+0x1f) | 0x7f4ba13a1948:(setlocale+0x268)
+12       2        0        2        0x7f4ba141038f:(__strdup+0x1f) | 0x7f4ba13a3395:(setlocale+0x1cb5)
+16       1        0        1        0x7f4ba14b4d1f:(__nss_database_lookup2+0x25f) | 0x7f4ba147627c:(sched_setaffinity+0x2a3c)
+16       3        0        3        0x7f4ba14b515a:(__nss_lookup_function+0xca) | 0x7f4ba14754bf:(sched_setaffinity+0x1c7f)
+20       1        0        1        0x7f4ba14b4e45:(__nss_database_lookup2+0x385) | 0x7f4ba147627c:(sched_setaffinity+0x2a3c)
+22       2        0        2        0x7f4ba14b4e45:(__nss_database_lookup2+0x385) | 0x7f4ba147627c:(sched_setaffinity+0x2a3c)
+23       3        0        3        0x7f4ba14b4e45:(__nss_database_lookup2+0x385) | 0x7f4ba147627c:(sched_setaffinity+0x2a3c)
+24       3        0        3        0x7f4ba148af94:(tsearch+0x1c4) | 0x7f4ba14b50f1:(__nss_lookup_function+0x61)
+24       3        0        3        0x7f4ba14b490e:(__gai_sigqueue+0x68e) | 0x7f4ba14b5179:(__nss_lookup_function+0xe9)
+24       1        0        1        0x7f4ba14b4e45:(__nss_database_lookup2+0x385) | 0x7f4ba147627c:(sched_setaffinity+0x2a3c)
+25       3        0        3        0x7f4ba14b4e45:(__nss_database_lookup2+0x385) | 0x7f4ba147627c:(sched_setaffinity+0x2a3c)
+26       1        0        1        0x7f4ba14b4e45:(__nss_database_lookup2+0x385) | 0x7f4ba147627c:(sched_setaffinity+0x2a3c)
+32       1        0        1        0x7f4ba140fca0:(__libc_dynarray_emplace_enlarge+0xe0) | 0x7f4ba14b3faf:(__resolv_context_put+0x138f)
+38       1        0        1        0x7f4ba16655b8:(_dl_rtld_di_serinfo+0x2528) | 0x7f4ba165ee97:(_dl_catch_error+0x0)
+38       1        0        1        0x7f4ba16775df:(_dl_catch_error+0x189f) | 0x7f4ba1671a92:(_dl_exception_free+0x832)
+40       1        0        1        0x7f4ba16655b8:(_dl_rtld_di_serinfo+0x2528) | 0x7f4ba165ee97:(_dl_catch_error+0x0)
+40       1        0        1        0x7f4ba16775df:(_dl_catch_error+0x189f) | 0x7f4ba1671a92:(_dl_exception_free+0x832)
+48       1        0        1        0x7f4ba16655b8:(_dl_rtld_di_serinfo+0x2528) | 0x7f4ba165ee97:(_dl_catch_error+0x0)
+48       1        0        1        0x7f4ba16775df:(_dl_catch_error+0x189f) | 0x7f4ba1671a92:(_dl_exception_free+0x832)
+51       4        0        4        0x7f4ba14b43f7:(__gai_sigqueue+0x177) | 0x7f4ba14b4e6c:(__nss_database_lookup2+0x3ac)
+52       2        0        2        0x7f4ba14b43f7:(__gai_sigqueue+0x177) | 0x7f4ba14b4e6c:(__nss_database_lookup2+0x3ac)
+54       10       0        10       0x7f4ba14b43f7:(__gai_sigqueue+0x177) | 0x7f4ba14b4e6c:(__nss_database_lookup2+0x3ac)
+56       2        0        2        0x7f4ba14b43f7:(__gai_sigqueue+0x177) | 0x7f4ba14b4e6c:(__nss_database_lookup2+0x3ac)
+56       1        0        1        0x7f4ba1667c4a:(_dl_rtld_di_serinfo+0x4bba) | 0x7f4ba166ddb0:(_dl_find_dso_for_object+0x920)
+62       1        0        1        0x7f4ba14b43f7:(__gai_sigqueue+0x177) | 0x7f4ba14b4e6c:(__nss_database_lookup2+0x3ac)
+72       2        0        2        0x7f4ba1667c4a:(_dl_rtld_di_serinfo+0x4bba) | 0x7f4ba166ddb0:(_dl_find_dso_for_object+0x920)
+80       2        0        2        0x7f4ba13a2a4f:(setlocale+0x136f) | 0x7f4ba13a33f4:(setlocale+0x1d14)
+88       2        0        2        0x7f4ba13a2a4f:(setlocale+0x136f) | 0x7f4ba13a33f4:(setlocale+0x1d14)
+88       1        0        1        0x7f4ba14b2d7f:(__resolv_context_put+0x15f) | 0x7f4ba14b3428:(__resolv_context_put+0x808)
+104      4        0        4        0x7f4ba13a2a4f:(setlocale+0x136f) | 0x7f4ba13a33f4:(setlocale+0x1d14)
+112      2        0        2        0x7f4ba13a2a4f:(setlocale+0x136f) | 0x7f4ba13a33f4:(setlocale+0x1d14)
+116      1        0        1        0x7f4ba140ff55:(__libc_alloc_buffer_allocate+0x15) | 0x7f4ba14b3849:(__resolv_context_put+0xc29)
+120      2        0        2        0x7f4ba13a2a4f:(setlocale+0x136f) | 0x7f4ba13a33f4:(setlocale+0x1d14)
+120      2        0        2        0x7f4ba13a337a:(setlocale+0x1c9a) | 0x7f4ba13a21ce:(setlocale+0xaee)
+168      2        0        2        0x7f4ba13a2a4f:(setlocale+0x136f) | 0x7f4ba13a33f4:(setlocale+0x1d14)
+192      2        0        2        0x7f4ba13a2a4f:(setlocale+0x136f) | 0x7f4ba13a33f4:(setlocale+0x1d14)
+192      2        0        2        0x7f4ba166b31d:(_dl_debug_state+0x113d) | 0x7f4ba166e0fd:(_dl_find_dso_for_object+0xc6d)
+216      2        0        2        0x7f4ba13a2a4f:(setlocale+0x136f) | 0x7f4ba13a33f4:(setlocale+0x1d14)
+240      1        0        1        0x7f4ba166b31d:(_dl_debug_state+0x113d) | 0x7f4ba166e0fd:(_dl_find_dso_for_object+0xc6d)
+281      1        0        1        0x7f4ba13a15c8:(__gconv_destroy_spec+0x178) | 0x7f4ba13a1e58:(setlocale+0x778)
+352      1        0        1        0x7f4ba166c9db:(_dl_allocate_tls+0x2b) | 0x7f4ba156c323:(pthread_create+0xa53)
+432      2        0        2        0x7f4ba13a2a4f:(setlocale+0x136f) | 0x7f4ba13a33f4:(setlocale+0x1d14)
+776      1        0        1        0x7f4ba13a2a4f:(setlocale+0x136f) | 0x7f4ba13a33f4:(setlocale+0x1d14)
+784      1        0        1        0x7f4ba13a2a4f:(setlocale+0x136f) | 0x7f4ba13a33f4:(setlocale+0x1d14)
+1200     1        0        1        0x7f4ba1665284:(_dl_rtld_di_serinfo+0x21f4) | 0x7f4ba165ee97:(_dl_catch_error+0x0)
+1202     1        0        1        0x7f4ba1665284:(_dl_rtld_di_serinfo+0x21f4) | 0x7f4ba165ee97:(_dl_catch_error+0x0)
+1210     1        0        1        0x7f4ba1665284:(_dl_rtld_di_serinfo+0x21f4) | 0x7f4ba165ee97:(_dl_catch_error+0x0)
+1336     2        0        2        0x7f4ba13a2a4f:(setlocale+0x136f) | 0x7f4ba13a33f4:(setlocale+0x1d14)
+1560     1        0        1        0x7f4ba14ae775:(__idna_from_dns_encoding+0x925) | 0x7f4ba1477a69:(getaddrinfo+0xa19)
+----------- total=17501      peak=336771     -----------
 ```
 
 ### jhook举例说明(gdb)
