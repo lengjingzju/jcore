@@ -2,20 +2,69 @@
 
 JCore致力于提供C语言最实用的数据结构、工具、算法。目前已提供一个内存调试工具，采用代码注入的方法，无需重新编译原始程序(动态链接)，即可调试它的内存问题，也提供库函数替换法重新编译程序替换库函数。
 
-## 内存调试工具
+## jhook内存调试工具
 
-* 内存调试工具jhook仅用约500行代码就实现了valgrind约26000行代码实现的memcheck的核心功能，无需重新编译程序即可完成内存越界分析和内存泄漏分析。
+* 内存调试工具jhook仅用约800行核心代码就实现了valgrind约26000行代码实现的memcheck的核心功能，无需重新编译程序即可完成内存越界分析和内存泄漏分析。
     * 代码注入的实现原理是使用 `LD_PRELOAD` 在程序运行前优先加载的指定的动态库，这个库中重新定义堆分配释放函数，加入调试和统计钩子。
     * 内存越界分析的核心思想是分配内存时多分配一些内存，在尾部内存处memset成校验字节，如果检测到尾部校验字节不对，就判定为内存有越界。
     * 内存泄漏分析的核心思想是以“分配大小和函数调用栈”为锚点，分配的内存指针挂载在锚点上，从而统计指定锚点分配了多少次，释放了多少次，如果“分配减释放”的值一直在增大，则判定该位置存在内存泄漏。
-
 * 内存调试工具jhook根据记录统计数据的数据结构，有两个实现，两者的功能和接口是完全一致的，选择其中一个实现即可。
     * `libjlisthook.so`: 由 `jlisthook.c` `jhook.c` `jlist.h` 编译生成，使用单向循环列表记录统计数据，节点占用内存空间较小，但有大量分配数据时记录统计信息较慢。
     * `libjtreehook.so`: 由 `jtreehook.c` `jhook.c` `jtree.h`  `jtree.c` 编译生成，使用红黑树记录统计数据，节点占用内存空间较大，但有大量分配数据时记录统计信息较快，统计信息打印时按分配单元大小从小到大排序。
 
-注：用户也可以使用开源工具 `valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all <bin>` 命令查找内存泄漏.
+注：用户也可以使用开源工具 `valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all <bin>` 命令查找内存泄漏。
 
-### 编译方式
+* 使用jhook检测的内存泄漏
+
+```c
+$ make O=obj check_cycle=10 check_unwind=y check_depth=10 # 编译选项
+$ LD_PRELOAD=/home/lengjing/data/jcore/obj/libjtreehook.so ./yyjson twitter.json 1
+[mut] read=3     parse=3     format=3     unformat=2
+--------------------------------------------------------
+size     alloc    free     diff     addr
+1024     1        0        1        0x7f936fd1dd04:(_IO_file_doallocate+0x94) | 0x7f936fd2ded0:(_IO_doallocbuf+0x50) | 0x7f936fd2cf30:(_IO_file_overflow+0x1b0) | 0x7f936fd2b6b5:(_IO_file_xsputn+0xe5) | 0x7f936fd12972:(psiginfo+0x13512) | 0x7f936fdca27b:(__printf_chk+0xab) | 0x55895411646f:(main+0x20f) | 0x7f936fcc0083:(__libc_start_main+0xf3) | 0x55895411663e:(_start+0x2e)
+631518   1        0        1        0x55895411d290:(yyjson_read_opts+0xb0) | 0x558954116358:(main+0xf8) | 0x7f936fcc0083:(__libc_start_main+0xf3) | 0x55895411663e:(_start+0x2e)
+631632   1        0        1        0x55895411d64e:(yyjson_read_opts+0x46e) | 0x558954116358:(main+0xf8) | 0x7f936fcc0083:(__libc_start_main+0xf3) | 0x55895411663e:(_start+0x2e)
+----------- total=1264174    peak=3894705    -----------
+```
+
+* 使用valgrind检测的内存泄漏
+
+```
+$ valgrind --tool=memcheck --leak-check=full --show-leak-kinds=all ./yyjson twitter.json 1
+==240599== Memcheck, a memory error detector
+==240599== Copyright (C) 2002-2017, and GNU GPL'd, by Julian Seward et al.
+==240599== Using Valgrind-3.15.0 and LibVEX; rerun with -h for copyright info
+==240599== Command: ./yyjson twitter.json 1
+==240599==
+[mut] read=14    parse=27    format=19    unformat=14
+==240599==
+==240599== HEAP SUMMARY:
+==240599==     in use at exit: 1,263,150 bytes in 2 blocks
+==240599==   total heap usage: 57 allocs, 55 frees, 7,069,897 bytes allocated
+==240599==
+==240599== 631,518 bytes in 1 blocks are indirectly lost in loss record 1 of 2
+==240599==    at 0x483B7F3: malloc (in /usr/lib/x86_64-linux-gnu/valgrind/vgpreload_memcheck-amd64-linux.so)
+==240599==    by 0x11028F: yyjson_read_opts (in /home/lengjing/data/test/yyjson)
+==240599==    by 0x109357: main (in /home/lengjing/data/test/yyjson)
+==240599==
+==240599== 1,263,150 (631,632 direct, 631,518 indirect) bytes in 1 blocks are definitely lost in loss record 2 of 2
+==240599==    at 0x483B7F3: malloc (in /usr/lib/x86_64-linux-gnu/valgrind/vgpreload_memcheck-amd64-linux.so)
+==240599==    by 0x11064D: yyjson_read_opts (in /home/lengjing/data/test/yyjson)
+==240599==    by 0x109357: main (in /home/lengjing/data/test/yyjson)
+==240599==
+==240599== LEAK SUMMARY:
+==240599==    definitely lost: 631,632 bytes in 1 blocks
+==240599==    indirectly lost: 631,518 bytes in 1 blocks
+==240599==      possibly lost: 0 bytes in 0 blocks
+==240599==    still reachable: 0 bytes in 0 blocks
+==240599==         suppressed: 0 bytes in 0 blocks
+==240599==
+==240599== For lists of detected and suppressed errors, rerun with: -s
+==240599== ERROR SUMMARY: 1 errors from 1 contexts (suppressed: 0 from 0)
+```
+
+### jhook编译方式
 
 ```sh
 make O=obj check_cycle=10 check_tofile=n check_unwind=n check_depth=1
@@ -403,3 +452,141 @@ size     alloc    free     diff     addr
 静态链接程序使用库函数替换法，链接成静态可执行文件时需要加上链接选项 `-Wl,--wrap=free -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=strdup -Wl,--wrap=strndup -ljtreewrap -pthread`，此时会使用自定义的函数 `__wrap_xxxx` 代替库函数 `xxxx`，如果此时要使用真正的库函数，可以使用  `__real_xxxx` 。
 
 例如静态编译 [LJSON](https://github.com/lengjingzju/json) 内存调试，可以如下编译： `gcc -o ljson json.c jnum.c json_test.c -O2 -ffunction-sections -fdata-sections -W -Wall -L/home/lengjing/data/jcore/obj -Wl,--wrap=free -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=strdup -Wl,--wrap=strndup -ljtreewrap -pthread -lm` 。
+
+### 上百进程的WebRTC大型服务调试
+
+阶段一：判定哪个进程的哪个分配大小的内存有泄漏
+
+* 编译资源占用小的调试程序
+
+```sh
+$ make O=obj check_cycle=10 check_tofile=y
+```
+
+* 导出环境变量，以代码注入方式运行程序
+
+```sh
+$ export LD_PRELOAD=<jhook_path>/libjtreehook.so
+$ ./<cmd>
+```
+
+* 运行一段时间后，查看哪个记录文件表现内存一直在增长
+
+```sh
+$ grep -n 'total=' `ls -Sr <log_path>/heap_memory_info.*.log`
+```
+
+* 辅助分析手段：对文件进行如下处理，看下哪个节点的内存疑似泄漏
+    * size和addr相同是同一节点，如果diff值一直增加，表明该节点可能存在内存泄漏
+
+```sh
+$ grep -E '^[0-9]+ ' heap_memory_info.<pid>.log | nl | sort -k2n -k6 -k1n | cut -f 2-
+```
+
+* 辅助信息手段：查看进程线程相关信息
+
+```sh
+$ cat /proc/<pid>/cmdline
+$ top -Hp <pid>
+$ ps -Tlf <pid>
+```
+
+阶段二：得到内存泄漏的节点的堆栈
+
+* 修改调试程序源码只监测特定size的内存分配
+
+```sh
+--- a/jtreehook.c
++++ b/jtreehook.c
+@@ -745,6 +745,7 @@ void before_main(void)
+     jhook_mgr_t *mgr = &s_jhook_mgr;
+     if (!mgr->inited) {
+         jhook_init(0);
++        jhook_set_limit(<size>, <size>);
+         jhook_start();
+     }
+ }
+```
+
+* 如果系统不带 `libunwind`，需要先下载编译 `libunwind`
+
+```sh
+$ autoreconf --install
+$ mkdir build && cd build
+$ ../configure --prefix=<libunwind install root>
+$ make && make install
+```
+
+* 编译记录节点调用栈的函数，调用栈层数可配
+
+```sh
+$ make O=obj DEPDIR=<libunwind install root> check_cycle=10 check_tofile=y check_unwind=y check_depth=10
+```
+
+* 导出环境变量，以代码注入方式运行程序
+
+```sh
+$ export LD_LIBRARY_PATH=<libunwind.so path>:$LD_LIBRARY_PATH
+$ export LD_PRELOAD=<jhook_path>/libjtreehook.so
+$ ./<cmd>
+```
+
+* 运行一段时间后，查看记录文件的堆栈信息和内存泄漏信息
+
+* 如果是 `C++` 程序，可以使用如下脚本处理文件得到真正的函数
+
+```sh
+#!/bin/bash
+
+src=$1
+
+if [ -z $src ]; then
+    echo "Usage: $0 <src>"
+    exit 1
+fi
+
+IFS=$'\n'
+for line in $(cat $src | sed -e 's/ 0x/\n0x/g' -e 's/ |//g'); do
+    if [ $(echo "$line" | grep -c "^0x") -eq 1 ]; then
+        prefix=$(echo "$line" | cut -d '(' -f 1)
+        suffix=$(echo "$line" | cut -d '(' -f 2 | cut -d '+' -f 2 | cut -d ')' -f 1)
+        oldfunc=$(echo "$line" | cut -d '(' -f 2 | cut -d '+' -f 1)
+        newfunc=$(c++filt $oldfunc 2>/dev/null)
+        echo "$prefix $newfunc+$suffix"
+    else
+        if [ $(echo "$line" | grep -c "^[0-9]") -eq 1 ]; then
+            echo -e "\033[33m$line\033[0m"
+        else
+            echo -e "\033[32m$line\033[0m"
+        fi
+    fi
+done
+```
+
+* 最终发现下面的内存积攒来不及释放
+
+```sh
+1640     1072685  375670   697015
+0x7f4f024de298: operator new(unsigned long)+0x18
+0x7f4eea713bb0: std::__shared_ptr<erizo::DataPacket, (__gnu_cxx::_Lock_policy)2>::__shared_ptr<std::allocator<erizo::DataPacket>, erizo::DataPacket&>(std::_Sp_make_shared_tag, std::allocator<erizo::DataPacket> const&, erizo::DataPacket&)+0x30
+0x7f4eea709c4d: erizo::MediaStream::deliverAudioData_(std::shared_ptr<erizo::DataPacket>)+0x3d
+0x7f4eeb535912: owt_base::AudioFramePacketizer::onAdapterData(char*, int)+0x172
+0x7f4eeb00ec55: non-virtual thunk to rtc_adapter::AudioSendAdapterImpl::SendRtp(unsigned char const*, unsigned long, webrtc::PacketOptions const&)+0x15
+0x7f4eeb11c3c8: webrtc::DEPRECATED_RtpSenderEgress::SendPacketToNetwork(webrtc::RtpPacketToSend const&, webrtc::PacketOptions const&, webrtc::PacedPacketInfo const&)+0x58
+0x7f4eeb11cd42: webrtc::DEPRECATED_RtpSenderEgress::SendPacket(webrtc::RtpPacketToSend*, webrtc::PacedPacketInfo const&)+0x252
+0x7f4eeb11d087: webrtc::DEPRECATED_RtpSenderEgress::NonPacedPacketSender::EnqueuePackets(std::__1::vector<std::__1::unique_ptr<webrtc::RtpPacketToSend, std::__1::default_delete<webrtc::RtpPacketToSend> >, std::__1::allocator<std::__1::unique_ptr<webrtc::RtpPacketToSend, std::__1::default_delete<webrtc::RtpPacketToSend> > > >)+0x97
+0x7f4eeb061e1e: webrtc::RTPSender::SendToNetwork(std::__1::unique_ptr<webrtc::RtpPacketToSend, std::__1::default_delete<webrtc::RtpPacketToSend> >)+0x14e
+0x7f4eeb053569: webrtc::RTPSenderAudio::SendAudio(webrtc::AudioFrameType, signed char, unsigned int, unsigned char const*, unsigned long, long)+0x849
+
+1640     753557   495014   258543
+0x7f4f024de298: operator new(unsigned long)+0x18
+0x7f4eea713bb0: std::__shared_ptr<erizo::DataPacket, (__gnu_cxx::_Lock_policy)2>::__shared_ptr<std::allocator<erizo::DataPacket>, erizo::DataPacket&>(std::_Sp_make_shared_tag, std::allocator<erizo::DataPacket> const&, erizo::DataPacket&)+0x30
+0x7f4eea70a25e: erizo::MediaStream::onTransportData(std::shared_ptr<erizo::DataPacket>, erizo::Transport*)+0x4e
+0x7f4eea6ec473: std::_Function_handler<void (std::shared_ptr<erizo::MediaStream> const&), erizo::WebRtcConnection::onTransportData(std::shared_ptr<erizo::DataPacket>, erizo::Transport*)::{lambda(std::shared_ptr<erizo::MediaStream> const&)#3}>::_M_invoke(std::_Any_data const&, std::shared_ptr<erizo::MediaStream> const&)+0x103
+0x7f4eea6ea882: erizo::WebRtcConnection::forEachMediaStream(std::function<void (std::shared_ptr<erizo::MediaStream> const&)>)+0x62
+0x7f4eea6ecb4a: erizo::WebRtcConnection::onTransportData(std::shared_ptr<erizo::DataPacket>, erizo::Transport*)+0x38a
+0x7f4eea6c78f3: erizo::UnencryptedTransport::onIceData(std::shared_ptr<erizo::DataPacket>)+0x233
+0x7f4eea6c3a85: std::_Function_handler<void (), erizo::Transport::onPacketReceived(std::shared_ptr<erizo::DataPacket>)::{lambda()#1}>::_M_invoke(std::_Any_data const&)+0xf5
+0x7f4eea7243fd: boost::asio::detail::completion_handler<std::function<void ()> >::do_complete(boost::asio::detail::task_io_service*, boost::asio::detail::task_io_service_operation*, boost::system::error_code const&, unsigned long)+0x7d
+0x7f4eea72504b: boost::asio::detail::task_io_service::run(boost::system::error_code&)+0x43b
+```
