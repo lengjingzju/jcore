@@ -6,6 +6,7 @@
 *******************************************/
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -644,10 +645,10 @@ end:
     pthread_mutex_unlock(&mgr->mtx);
 }
 
-void jhook_delptr(void *ptr)
+void jhook_delptr(void *ptr, bool del_node)
 {
     jhook_mgr_t *mgr = &s_jhook_mgr;
-    jhook_node_t *node = NULL;
+    jhook_node_t *pnode = NULL, *node = NULL, *nnode = NULL;
     jhook_data_t *p = NULL, *pos = NULL, *n = NULL;
 
     if (!ptr)
@@ -656,7 +657,7 @@ void jhook_delptr(void *ptr)
         return;
 
     pthread_mutex_lock(&mgr->mtx);
-    jslist_for_each_entry(node, &mgr->head, list) {
+    jslist_for_each_entry_safe(pnode, node, nnode, &mgr->head, list) {
         jslist_for_each_entry_safe(p, pos, n, &node->head, list) {
             if (pos->ptr == ptr) {
                 jslist_del(&pos->list, &p->list, &node->head);
@@ -665,6 +666,12 @@ void jhook_delptr(void *ptr)
                 node->changed = 1;
                 mgr->total_size -= node->size;
                 pos = p;
+
+                if (del_node && node->alloc == node->free) {
+                    jslist_del(&node->list, &pnode->list, &mgr->head);
+                    __libc_free(node);
+                    node = pnode;
+                }
                 goto end;
             }
         }
