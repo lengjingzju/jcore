@@ -5,6 +5,7 @@
 * https://github.com/lengjingzju/jcore     *
 *******************************************/
 #pragma once
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -249,9 +250,26 @@ static inline void jslist_add(struct jslist *_new, struct jslist *prev, struct j
 }
 
 /**
+ * @brief   从链表中删除第一个节点
+ * @param   head [INOUT] 链表头
+ * @return  无返回值
+ * @note    一般是操作pos，可以在循环体内部进行添加删除节点操作
+ */
+static inline void jslist_del_head(struct jslist_head *head)
+{
+    struct jslist *_del = head->next;
+    if (_del->next == (struct jslist *)head) {
+        head->prev = (struct jslist *)head;
+    }
+    head->next = _del->next;
+    _del->next = NULL;
+}
+
+/**
  * @brief   从链表中删除指定节点
  * @param   _del [INOUT] 要删除的节点
  * @param   prev [INOUT] 要删除的节点的前一节点
+ * @param   head [INOUT] 链表头
  * @return  无返回值
  * @note    一般是操作pos，可以在循环体内部进行添加删除节点操作
  */

@@ -1,0 +1,10 @@
+prefix=${pcfiledir}/../..
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: jcore
+Description: JCore is committed to providing the most practical data structures and tools in C language: data structures include dynamic arrays, dynamic strings, linked lists, hash tables, bitmaps, red black trees, and priority queues, etc; Practical tools include memory debugging tools, data structure generation tools, logging tools, and thread pool timers.
+Version: @Version@
+Libs: -L${libdir} -ljcore
+Cflags: -I${includedir}

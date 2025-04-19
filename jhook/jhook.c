@@ -5,6 +5,7 @@
 * https://github.com/lengjingzju/jcore     *
 *******************************************/
 #include <string.h>
+#include <stdbool.h>
 
 #ifndef JHOOK_WRAP
 #define JHOOK_WRAP      0
@@ -31,13 +32,13 @@ extern void* __libc_realloc(void *ptr, size_t size);
 extern void  __libc_free(void *ptr);
 
 extern void jhook_addptr(void *ptr, size_t size, void *addr);
-extern void jhook_delptr(void *ptr);
+extern void jhook_delptr(void *ptr, bool del_node);
 extern int jhook_tailnum(void);
 
 void jhook_free(void *ptr)
 {
     if (ptr) {
-        jhook_delptr(ptr);
+        jhook_delptr(ptr, false);
         __libc_free(ptr);
     }
 }
@@ -66,7 +67,7 @@ void *jhook_calloc(size_t nmemb, size_t size)
 
 void *jhook_realloc(void *ptr, size_t size)
 {
-    jhook_delptr(ptr);
+    jhook_delptr(ptr, true);
     ptr = __libc_realloc(ptr, size + jhook_tailnum());
     if (!ptr)
         return NULL;

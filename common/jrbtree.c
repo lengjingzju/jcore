@@ -5,9 +5,12 @@
 * https://github.com/lengjingzju/jcore     *
 *******************************************/
 #include <stddef.h>
-#include "jtree.h"
+#include "jrbtree.h"
 
-#define rb_parent(r)            ((struct jtree *)((r)->parent_color & ~3UL))
+#define JRBTREE_RED             0
+#define JRBTREE_BLACK           1
+
+#define rb_parent(r)            ((struct jrbtree *)((r)->parent_color & ~3UL))
 #define rb_color(r)             ((r)->parent_color & 1UL)
 #define rb_is_red(r)            (!rb_color(r))
 #define rb_is_black(r)          rb_color(r)
@@ -17,10 +20,10 @@
 #define rb_set_red(r)           do { (r)->parent_color &= ~1UL; } while (0)
 #define rb_set_black(r)         do { (r)->parent_color |=  1UL; } while (0)
 
-static void jtree_rotate_left(struct jtree_root *root, struct jtree *node)
+static void jrbtree_rotate_left(struct jrbtree_root *root, struct jrbtree *node)
 {
-    struct jtree *right = node->right_son;        // N的右节点R
-    struct jtree *parent = rb_parent(node);       // N的父节点P
+    struct jrbtree *right = node->right_son;        // N的右节点R
+    struct jrbtree *parent = rb_parent(node);       // N的父节点P
 
     /*
      * 左旋示意图(对节点N进行左旋)
@@ -48,10 +51,10 @@ static void jtree_rotate_left(struct jtree_root *root, struct jtree *node)
     }
 }
 
-static void jtree_rotate_right(struct jtree_root *root, struct jtree *node)
+static void jrbtree_rotate_right(struct jrbtree_root *root, struct jrbtree *node)
 {
-    struct jtree *left = node->left_son;          // N的左节点L
-    struct jtree *parent = rb_parent(node);       // N的父节点P
+    struct jrbtree *left = node->left_son;          // N的左节点L
+    struct jrbtree *parent = rb_parent(node);       // N的父节点P
 
     /*
      * 右旋示意图(对节点N进行右旋)
@@ -79,9 +82,9 @@ static void jtree_rotate_right(struct jtree_root *root, struct jtree *node)
     }
 }
 
-static void jtree_add_fixup(struct jtree_root *root, struct jtree *node)
+static void jrbtree_add_fixup(struct jrbtree_root *root, struct jrbtree *node)
 {
-    struct jtree *parent, *gparent, *uncle, *tmp;
+    struct jrbtree *parent, *gparent, *uncle, *tmp;
 
     /*
      * 插入的节点的默认颜色是红色，插入情况分为3种：
@@ -118,7 +121,7 @@ static void jtree_add_fixup(struct jtree_root *root, struct jtree *node)
                  *  \                  /
                  *  rN                rP
                  */
-                jtree_rotate_left(root, parent);
+                jrbtree_rotate_left(root, parent);
                 tmp = parent;
                 parent = node;
                 node = tmp;
@@ -133,7 +136,7 @@ static void jtree_add_fixup(struct jtree_root *root, struct jtree *node)
              */
             rb_set_black(parent);                   // 情况3.1.3：叔节点是黑色，且当前节点是左节点
             rb_set_red(gparent);
-            jtree_rotate_right(root, gparent);
+            jrbtree_rotate_right(root, gparent);
         } else {                                    // 父节点是祖父节点的右节点
             uncle = gparent->left_son;
             if (uncle && rb_is_red(uncle)) {        // 情况3.2.1：叔节点是红色
@@ -159,7 +162,7 @@ static void jtree_add_fixup(struct jtree_root *root, struct jtree *node)
                  *    /                    \
                  *   rN                    rP
                  */
-                jtree_rotate_right(root, parent);
+                jrbtree_rotate_right(root, parent);
                 tmp = parent;
                 parent = node;
                 node = tmp;
@@ -174,17 +177,17 @@ static void jtree_add_fixup(struct jtree_root *root, struct jtree *node)
              */
             rb_set_black(parent);                   // 情况3.2.3：叔节点是黑色，且当前节点是右节点
             rb_set_red(gparent);
-            jtree_rotate_left(root, gparent);
+            jrbtree_rotate_left(root, gparent);
         }
     }
 
     rb_set_black(root->head);                       // 将根节点涂为黑色
 }
 
-int jtree_add(struct jtree_root *root, struct jtree *node)
+int jrbtree_add(struct jrbtree_root *root, struct jrbtree *node)
 {
-    struct jtree **pn = &root->head;
-    struct jtree *parent = NULL;
+    struct jrbtree **pn = &root->head;
+    struct jrbtree *parent = NULL;
     int result = 0;
 
     if (!root->node_cmp)
@@ -205,15 +208,15 @@ int jtree_add(struct jtree_root *root, struct jtree *node)
     node->left_son = NULL;
     node->right_son = NULL;
     *pn = node;                                     // 设置父节点的左或右节点为新节点
-    jtree_add_fixup(root, node);
+    jrbtree_add_fixup(root, node);
     ++root->num;
 
     return 0;
 }
 
-static void jtree_del_fixup(struct jtree_root *root, struct jtree *node, struct jtree *parent)
+static void jrbtree_del_fixup(struct jrbtree_root *root, struct jrbtree *node, struct jrbtree *parent)
 {
-    struct jtree *brother;
+    struct jrbtree *brother;
 
     /*
      * 如果删除的是黑节点，需要进行平衡操作，处理的核心思想是将黑色上移到x，分3种情况：
@@ -235,7 +238,7 @@ static void jtree_del_fixup(struct jtree_root *root, struct jtree *node, struct 
                  */
                 rb_set_black(brother);
                 rb_set_red(parent);
-                jtree_rotate_left(root, parent);
+                jrbtree_rotate_left(root, parent);
                 brother = parent->right_son;
             }
 
@@ -266,7 +269,7 @@ static void jtree_del_fixup(struct jtree_root *root, struct jtree *node, struct 
                      */
                     rb_set_black(brother->left_son);
                     rb_set_red(brother);
-                    jtree_rotate_right(root, brother);
+                    jrbtree_rotate_right(root, brother);
                     brother = parent->right_son;
                 }
 
@@ -283,7 +286,7 @@ static void jtree_del_fixup(struct jtree_root *root, struct jtree *node, struct 
                 rb_set_color(brother, rb_color(parent));
                 rb_set_black(parent);
                 rb_set_black(brother->right_son);
-                jtree_rotate_left(root, parent);
+                jrbtree_rotate_left(root, parent);
                 node = root->head;
                 break;
             }
@@ -300,7 +303,7 @@ static void jtree_del_fixup(struct jtree_root *root, struct jtree *node, struct 
                  */
                 rb_set_black(brother);
                 rb_set_red(parent);
-                jtree_rotate_right(root, parent);
+                jrbtree_rotate_right(root, parent);
                 brother = parent->left_son;
             }
 
@@ -331,7 +334,7 @@ static void jtree_del_fixup(struct jtree_root *root, struct jtree *node, struct 
                      */
                     rb_set_black(brother->right_son);
                     rb_set_red(brother);
-                    jtree_rotate_left(root, brother);
+                    jrbtree_rotate_left(root, brother);
                     brother = parent->left_son;
                 }
 
@@ -348,7 +351,7 @@ static void jtree_del_fixup(struct jtree_root *root, struct jtree *node, struct 
                 rb_set_color(brother, rb_color(parent));
                 rb_set_black(parent);
                 rb_set_black(brother->left_son);
-                jtree_rotate_right(root, parent);
+                jrbtree_rotate_right(root, parent);
                 node = root->head;
                 break;
             }
@@ -358,9 +361,9 @@ static void jtree_del_fixup(struct jtree_root *root, struct jtree *node, struct 
         rb_set_black(node);
 }
 
-void jtree_del(struct jtree_root *root, struct jtree *node)
+void jrbtree_del(struct jrbtree_root *root, struct jrbtree *node)
 {
-    struct jtree *child, *parent;
+    struct jrbtree *child, *parent;
     int color;
 
     /*
@@ -375,7 +378,7 @@ void jtree_del(struct jtree_root *root, struct jtree *node)
     } else if (!node->right_son) {
         child = node->left_son;
     } else {
-        struct jtree *old = node, *left;
+        struct jrbtree *old = node, *left;
 
         /*
          * 检索了一级就满足
@@ -455,15 +458,15 @@ void jtree_del(struct jtree_root *root, struct jtree *node)
         root->head = child;
     }
 
- color:
+color:
     if (color == JRBTREE_BLACK)
-        jtree_del_fixup(root, child, parent);
+        jrbtree_del_fixup(root, child, parent);
     --root->num;
 }
 
-void jtree_replace(struct jtree_root *root, struct jtree *old, struct jtree *node)
+void jrbtree_replace(struct jrbtree_root *root, struct jrbtree *old, struct jrbtree *node)
 {
-    struct jtree *parent = rb_parent(old);
+    struct jrbtree *parent = rb_parent(old);
 
     if (parent) {
         if (old == parent->left_son)
@@ -480,9 +483,9 @@ void jtree_replace(struct jtree_root *root, struct jtree *old, struct jtree *nod
     *node = *old;
 }
 
-struct jtree *jtree_search(struct jtree_root *root, const void *key)
+struct jrbtree *jrbtree_search(struct jrbtree_root *root, const void *key)
 {
-    struct jtree *n = root->head;
+    struct jrbtree *n = root->head;
     int result = 0;
 
     if (!root->key_cmp)
@@ -500,9 +503,9 @@ struct jtree *jtree_search(struct jtree_root *root, const void *key)
     return NULL;
 }
 
-struct jtree *jtree_first(const struct jtree_root *root)
+struct jrbtree *jrbtree_first(const struct jrbtree_root *root)
 {
-    struct jtree *n = root->head;
+    struct jrbtree *n = root->head;
 
     if (!n)
         return NULL;
@@ -511,9 +514,9 @@ struct jtree *jtree_first(const struct jtree_root *root)
     return n;
 }
 
-struct jtree *jtree_last(const struct jtree_root *root)
+struct jrbtree *jrbtree_last(const struct jrbtree_root *root)
 {
-    struct jtree *n = root->head;
+    struct jrbtree *n = root->head;
 
     if (!n)
         return NULL;
@@ -522,15 +525,15 @@ struct jtree *jtree_last(const struct jtree_root *root)
     return n;
 }
 
-struct jtree *jtree_next(const struct jtree *node)
+struct jrbtree *jrbtree_next(const struct jrbtree *node)
 {
-    struct jtree *parent;
+    struct jrbtree *parent;
 
     if (node->right_son) {
         node = node->right_son;
         while (node->left_son)
-            node=node->left_son;
-        return (struct jtree *)node;
+            node = node->left_son;
+        return (struct jrbtree *)node;
     }
     while ((parent = rb_parent(node)) && node == parent->right_son)
         node = parent;
@@ -538,15 +541,15 @@ struct jtree *jtree_next(const struct jtree *node)
     return parent;
 }
 
-struct jtree *jtree_prev(const struct jtree *node)
+struct jrbtree *jrbtree_prev(const struct jrbtree *node)
 {
-    struct jtree *parent;
+    struct jrbtree *parent;
 
     if (node->left_son) {
         node = node->left_son;
         while (node->right_son)
-            node=node->right_son;
-        return (struct jtree *)node;
+            node = node->right_son;
+        return (struct jrbtree *)node;
     }
 
     while ((parent = rb_parent(node)) && node == parent->left_son)

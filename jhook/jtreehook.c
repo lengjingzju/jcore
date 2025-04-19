@@ -6,6 +6,7 @@
 *******************************************/
 #include <string.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -362,6 +363,7 @@ int jhook_init(int tail_num)
         PRINT_INFO("%lu:%s\n", pid, buf);
     }
 #endif
+
     return 0;
 }
 
@@ -706,7 +708,7 @@ end:
     pthread_mutex_unlock(&mgr->mtx);
 }
 
-void jhook_delptr(void *ptr)
+void jhook_delptr(void *ptr, bool del_node)
 {
     jhook_mgr_t *mgr = &s_jhook_mgr;
     struct jtree *t = NULL;
@@ -728,6 +730,10 @@ void jhook_delptr(void *ptr)
         node->changed = 1;
         mgr->total_size -= node->size;
         __libc_free(data);
+        if (del_node && node->alloc == node->free) {
+            jtree_del(&mgr->node_root, &node->tree);
+            __libc_free(node);
+        }
     }
     pthread_mutex_unlock(&mgr->mtx);
 }

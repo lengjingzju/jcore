@@ -22,12 +22,10 @@ extern "C" {
 /**
  * @brief   红黑树的节点结构
  */
-struct jtree {
-#define JRBTREE_RED     0
-#define JRBTREE_BLACK   1
+struct jrbtree {
+    struct jrbtree  *right_son;
+    struct jrbtree  *left_son;
     unsigned long   parent_color;
-    struct jtree  *right_son;
-    struct jtree  *left_son;
 };
 
 /**
@@ -35,11 +33,11 @@ struct jtree {
  * @note    首次使用红黑树前一定要设置num和head为空，且设置回调函数
  *          销毁红黑数全部节点再次使用红黑树一定要设置num和head为空
  */
-struct jtree_root {
+struct jrbtree_root {
     int num;                // 节点的总数
-    struct jtree *head;   // 红黑树的根节点，使用红黑树的入口
-    int (*key_cmp)(struct jtree *node, const void *key);  // 节点和key的比较函数
-    int (*node_cmp)(struct jtree *a, struct jtree *b);  // 节点之间的比较函数
+    struct jrbtree *head;   // 红黑树的根节点，使用红黑树的入口
+    int (*key_cmp)(struct jrbtree *node, const void *key);  // 节点和key的比较函数
+    int (*node_cmp)(struct jrbtree *a, struct jrbtree *b);  // 节点之间的比较函数
 };
 
 /**
@@ -50,7 +48,7 @@ struct jtree_root {
  * @return  返回节点的指针
  * @note    无
  */
-#define jtree_entry(ptr, type, member) ((type *)((char *)(ptr)-(unsigned long)(&((type *)0)->member)))
+#define jrbtree_entry(ptr, type, member) ((type *)((char *)(ptr)-(unsigned long)(&((type *)0)->member)))
 
 /**
  * @brief   加入节点到红黑树
@@ -59,7 +57,7 @@ struct jtree_root {
  * @return  成功返回0; 失败表示节点有冲突返回-1
  * @note    一定要设置node_cmp回调函数
  */
-int jtree_add(struct jtree_root *root, struct jtree *node);
+int jrbtree_add(struct jrbtree_root *root, struct jrbtree *node);
 
 /**
  * @brief   从红黑树删除节点
@@ -68,7 +66,7 @@ int jtree_add(struct jtree_root *root, struct jtree *node);
  * @return  无返回值
  * @note    无
  */
-void jtree_del(struct jtree_root *root, struct jtree *node);
+void jrbtree_del(struct jrbtree_root *root, struct jrbtree *node);
 
 /**
  * @brief   替换红黑树的旧节点为新节点
@@ -78,7 +76,7 @@ void jtree_del(struct jtree_root *root, struct jtree *node);
  * @return  无返回值
  * @note    old和node的key值必须相等
  */
-void jtree_replace(struct jtree_root *root, struct jtree *old, struct jtree *node);
+void jrbtree_replace(struct jrbtree_root *root, struct jrbtree *old, struct jrbtree *node);
 
 /**
  * @brief   查询红黑树指定key值的节点
@@ -87,7 +85,7 @@ void jtree_replace(struct jtree_root *root, struct jtree *old, struct jtree *nod
  * @return  返回找到的节点
  * @note    一定要设置key_cmp回调函数
  */
-struct jtree *jtree_search(struct jtree_root *root, const void *key);
+struct jrbtree *jrbtree_search(struct jrbtree_root *root, const void *key);
 
 /**
  * @brief   查询红黑树key值最小的节点
@@ -95,7 +93,7 @@ struct jtree *jtree_search(struct jtree_root *root, const void *key);
  * @return  返回找到的节点
  * @note    无
  */
-struct jtree *jtree_first(const struct jtree_root *root);
+struct jrbtree *jrbtree_first(const struct jrbtree_root *root);
 
 /**
  * @brief   查询红黑树key值最大的节点
@@ -103,7 +101,7 @@ struct jtree *jtree_first(const struct jtree_root *root);
  * @return  返回找到的节点
  * @note    无
  */
-struct jtree *jtree_last(const struct jtree_root *root);
+struct jrbtree *jrbtree_last(const struct jrbtree_root *root);
 
 /**
  * @brief   查询红黑树node节点的下一节点
@@ -111,7 +109,7 @@ struct jtree *jtree_last(const struct jtree_root *root);
  * @return  返回找到的节点
  * @note    无
  */
-struct jtree *jtree_next(const struct jtree *node);
+struct jrbtree *jrbtree_next(const struct jrbtree *node);
 
 /**
  * @brief   查询红黑树node节点的上一节点
@@ -119,7 +117,7 @@ struct jtree *jtree_next(const struct jtree *node);
  * @return  返回找到的节点
  * @note    无
  */
-struct jtree *jtree_prev(const struct jtree *node);
+struct jrbtree *jrbtree_prev(const struct jrbtree *node);
 
 #ifdef __cplusplus
 }
