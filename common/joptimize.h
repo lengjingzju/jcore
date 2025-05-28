@@ -31,7 +31,6 @@ extern "C" {
 #define JATTR_PURE              __attribute__((pure))           // 标记函数为纯函数(无副作用，返回值仅依赖输入)
 #define JATTR_COLD              __attribute__((cold))           // 标记函数为冷路径(优化为更小的代码体积)，不太可能被执行
 #define JATTR_HOT               __attribute__((hot))            // 标记函数为热路径(优化为更快执行)，常被执行
-__builtin_unreachable
 
 /**
  * @brief   改变编译行为的属性设置
@@ -262,6 +261,175 @@ static inline int jbit32_count(uint32_t n)
 static inline int jbit64_count(uint64_t n)
 {
     return jbit32_count((uint32_t)(n & 0xFFFFFFFF)) + jbit32_count((uint32_t)(n >> 32));
+}
+#endif
+
+#if (__WORDSIZE == 64) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6) || __clang_major__ >= 9)
+#define JU128_NATIVE_SUPPORT    1
+#else
+#define JU128_NATIVE_SUPPORT    0
+#endif
+
+#if JU128_NATIVE_SUPPORT
+__extension__ typedef unsigned __int128 ju128_t;
+static inline uint64_t ju128_high(ju128_t x) { return (uint64_t)(x >> 64); }
+static inline uint64_t ju128_low(ju128_t x) { return (uint64_t)(x); }
+
+static inline int ju128_cmp(ju128_t x, ju128_t y)
+{
+    return x > y ? 1 : (x < y ? -1 : 0);
+}
+
+static inline ju128_t ju128_add(ju128_t x, ju128_t y)
+{
+    return x + y;
+}
+
+static inline ju128_t ju128_sub(ju128_t x, ju128_t y)
+{
+    return x - y;
+}
+
+static inline ju128_t ju128_mul(uint64_t x, uint64_t y)
+{
+    return (ju128_t)x * y;
+}
+
+static inline uint64_t ju128_div(ju128_t dividend, uint64_t divisor, uint64_t *remainder)
+{
+    uint64_t ret = (uint64_t)(dividend / divisor);
+    *remainder = dividend - (ju128_t)ret * divisor;
+    return ret;
+}
+
+#else
+
+typedef struct _ju128 { uint64_t hi; uint64_t lo; } ju128_t;
+static inline uint64_t ju128_high(ju128_t x) { return x.hi; }
+static inline uint64_t ju128_low(ju128_t x) { return x.lo; }
+
+static inline int ju128_cmp(ju128_t x, ju128_t y)
+{
+    if (x.hi > y.hi) return 1;
+    if (x.hi < y.hi) return -1;
+    if (x.lo > y.lo) return 1;
+    if (x.lo < y.lo) return -1;
+    return 0;
+}
+
+static inline ju128_t ju128_add(ju128_t x, ju128_t y)
+{
+    ju128_t ret = {0, 0};
+    uint64_t diff = 0xFFFFFFFFFFFFFFFF - x.lo;
+    if (y.lo > diff) {
+        ret.lo = y.lo - diff - 1;
+        ret.hi = x.hi + y.hi + 1;
+    } else {
+        ret.lo = x.lo + y.lo;
+        ret.hi = x.hi + y.hi;
+    }
+    return ret;
+}
+
+static inline ju128_t ju128_sub(ju128_t x, ju128_t y)
+{
+    ju128_t ret = {0, 0};
+    if (x.lo < y.lo) {
+        uint64_t diff = 0xFFFFFFFFFFFFFFFF - y.lo;
+        ret.lo = x.lo + diff + 1;
+        ret.hi = x.hi - y.hi - 1;
+    } else {
+        ret.lo = x.lo - y.lo;
+        ret.hi = x.hi - y.hi;
+    }
+    return ret;
+}
+
+static inline ju128_t ju128_mul(uint64_t x, uint64_t y)
+{
+    ju128_t ret;
+#if defined(_MSC_VER) && defined(_M_AMD64)
+    ret.lo = _umul128(x, y, &ret.hi);
+#else
+    const uint64_t M32 = 0XFFFFFFFF;
+    const uint64_t a = x >> 32;
+    const uint64_t b = x & M32;
+    const uint64_t c = y >> 32;
+    const uint64_t d = y & M32;
+
+    const uint64_t ac = a * c;
+    const uint64_t bc = b * c;
+    const uint64_t ad = a * d;
+    const uint64_t bd = b * d;
+
+    const uint64_t mid1 = ad + (bd >> 32);
+    const uint64_t mid2 = bc + (mid1 & M32);
+
+    ret.hi = ac + (mid1 >> 32) + (mid2 >> 32);
+    ret.lo = (bd & M32) | (mid2 & M32) << 32;
+#endif
+    return ret;
+}
+
+static inline uint64_t ju128_div(ju128_t dividend, uint64_t divisor, uint64_t *remainder)
+{
+#if defined(_MSC_VER) && defined(_M_AMD64)
+    return _udiv128(dividend.hi, dividend.lo, divisor, remainder);
+#else
+    ju128_t ret = {0, 0};
+
+    if (!dividend.hi) {
+        ret.lo = dividend.lo / divisor;
+        *remainder = dividend.lo % divisor;
+        return ret.lo;
+    }
+
+    int32_t abits = 64 - jbit64_clz(dividend.hi);
+    int32_t bbits = 64 - jbit64_clz(divisor);
+    int32_t shift = 0;
+
+    if (abits >= bbits) {
+        /* dividend.hi >= divisor 时结果被截断 */
+        shift = 64;
+        while (abits > bbits) {
+            if (dividend.hi >= (divisor << (abits - bbits))) {
+                dividend.hi -= divisor << (abits - bbits);
+                ret.hi |= (uint64_t)1;
+            }
+            ret.hi <<= 1;
+            --abits;
+        }
+        if (dividend.hi >= divisor) {
+            dividend.hi -= divisor;
+            ret.hi |= (uint64_t)1;
+        }
+    } else {
+        shift = 64;
+        dividend.hi = (dividend.hi << (bbits - abits - 1)) | (dividend.lo >> (64 - (bbits - abits - 1)));
+        dividend.lo <<= (bbits - abits - 1);
+        shift -= (bbits - abits - 1);
+    }
+
+    while (--shift) {
+        dividend.hi = (dividend.hi << 1) | (dividend.lo >> 63);
+        dividend.lo <<= 1;
+        if (dividend.hi >= divisor) {
+            dividend.hi -= divisor;
+            ret.lo |= (uint64_t)1;
+        }
+        ret.lo <<= 1;
+    }
+
+    dividend.hi = (dividend.hi << 1) | (dividend.lo >> 63);
+    dividend.lo <<= 1;
+    if (dividend.hi >= divisor) {
+        dividend.hi -= divisor;
+        ret.lo |= (uint64_t)1;
+    }
+
+    *remainder = dividend.hi;
+    return ret.lo;
+#endif
 }
 #endif
 
