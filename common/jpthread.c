@@ -9,6 +9,7 @@
 #include "jheap.h"
 #include "jpheap.h"
 #include "jtime.h"
+#include "jtimer.h"
 #include "jthread.h"
 #include "jpthread.h"
 
@@ -36,7 +37,7 @@ typedef struct {
     int pending_workers;                // 等待执行的任务数，即挂载到worker_head的节点数
     jthread_t thd;                      // 主线程id
     jthread_mutex_t mtx;                // 互斥锁
-    jthread_cond_t cond;                // 条件变量
+    struct jtimer_ctx ctx;              // 定时器会话管理结构
     jpheap_mgr_t thread_pheap;          // 存储线程结构的内存池
     jpheap_mgr_t task_pheap;            // 存储任务结构的内存池(worker + timer)
     struct jdlist_head thread_head;     // 空闲线程链表挂载节点
@@ -74,7 +75,19 @@ typedef struct {
     task = NULL;                                    \
 } while(0)
 
-#define CORRECT_NS          100000      // 定时器修正时间纳秒，当前时间早于此之内也加入执行队列
+#define CORRECT_NS          50000   // 定时器修正时间纳秒，当前时间早于此之内也加入执行队列
+static inline int _check_expire(const jtime_nt_t *wake_nt, const jtime_nt_t *nt)
+{
+    if (nt->sec < wake_nt->sec) {
+        return (wake_nt->sec - nt->sec == 1) ? ((nt->nsec + CORRECT_NS < 1000000000llu + wake_nt->nsec) ? 0 : 1) : 0;
+    }
+
+    if (nt->sec == wake_nt->sec && nt->nsec + CORRECT_NS < wake_nt->nsec) {
+        return 0;
+    }
+
+    return 1;
+}
 
 /*
  * 优先级队列中线程比较两个节点的回调函数
@@ -140,7 +153,7 @@ next:
         jthread_mutex_unlock(&mgr->mtx);
         task->exec_cb(task->args); /* 执行任务 */
         if (task->type == JPTHREAD_TIMER_REPEAT)
-            jtime_utcntime_get(&nt);
+            jtime_clockntime_get(&nt);
 
         jthread_mutex_lock(&mgr->mtx);
         if (mgr->running) {
@@ -149,21 +162,16 @@ next:
 
             switch (task->type) {
             case JPTHREAD_TIMER_REPEAT:
-                if ((nt.sec == task->wake_nt.sec && nt.nsec + CORRECT_NS < task->wake_nt.nsec)
-                    || nt.sec < task->wake_nt.sec) {
+                if (!_check_expire(&task->wake_nt, &nt)) {
                     /* 重复型任务未到期需要归还到优先级队列 */
                     task->state = JPTHREAD_IN_QUEUE;
                     jpqueue_add(&mgr->timer_queue, task);
                     if (jpqueue_head(&mgr->timer_queue) == (void *)task)
-                        jthread_cond_signal(&mgr->cond);
+                        jtimer_wakeup(&mgr->ctx);
                     task = NULL;
                 } else {
                     /* 重复型任务到期，直接下次执行 */
-                    jtime_utcntime_madd(&task->wake_nt, task->cycle_ms);
-                    if (nt.sec > task->wake_nt.sec + 1) {
-                        task->wake_nt = nt;
-                        jtime_utcntime_madd(&task->wake_nt, task->cycle_ms);
-                    }
+                    jtime_ntime_madd(&task->wake_nt, task->cycle_ms);
                     goto next;
                 }
                 task = NULL;
@@ -255,26 +263,19 @@ static jthread_ret_t _thread_main(void *arg)
 
     jthread_setname("jpthread_main");
     while (1) {
-        jtime_utcntime_get(&nt);
+        jtime_clockntime_get(&nt);
         jthread_mutex_lock(&mgr->mtx);
         if (!mgr->running) {
             jthread_mutex_unlock(&mgr->mtx);
             break;
         }
 
-        /* 初始化ntt，后面用于存储优先级队列中最优先任务的wake_nt */
-        ntt.sec = 0;
-        ntt.nsec = 0;
-
         /* 查询优先级队列中的任务 */
         while ((task = (jpthread_task_t *)jpqueue_head(&mgr->timer_queue))) {
             if (task->type > JPTHREAD_TIMER_REPEAT)
                 break;
-            if ((nt.sec == task->wake_nt.sec && nt.nsec + CORRECT_NS < task->wake_nt.nsec)
-                || nt.sec < task->wake_nt.sec) {
-                ntt = task->wake_nt;
+            if (!_check_expire(&task->wake_nt, &nt))
                 break;
-            }
 
             /* 任务到期，有线程资源时唤醒线程执行 */
             jpqueue_pop(&mgr->timer_queue);
@@ -282,17 +283,16 @@ static jthread_ret_t _thread_main(void *arg)
             jdlist_add_tail(&task->list, &mgr->worker_head);
             ++mgr->pending_workers;
             if (task->type == JPTHREAD_TIMER_REPEAT) {
-                jtime_utcntime_madd(&task->wake_nt, task->cycle_ms);
-                if (nt.sec > task->wake_nt.sec + 1) {
-                    task->wake_nt = nt;
-                    jtime_utcntime_madd(&task->wake_nt, task->cycle_ms);
-                }
+                jtime_ntime_madd(&task->wake_nt, task->cycle_ms);
             }
+
             _thread_wake(mgr);
 
             /* 让出CPU，让任务执行线程执行 */
-            jthread_mutex_unlock(&mgr->mtx);
-            jthread_mutex_lock(&mgr->mtx);
+            if ((mgr->pending_workers & 0xf) == 0) {
+                jthread_mutex_unlock(&mgr->mtx);
+                jthread_mutex_lock(&mgr->mtx);
+            }
         }
 
         /* 设置上次线程忙的时间 */
@@ -314,16 +314,28 @@ static jthread_ret_t _thread_main(void *arg)
         }
 
         /* 更新下次唤醒时间，有定时器任务符合更小时间条件开始取定时器时间，否则取默认1s后 */
-        jtime_utcntime_madd(&nt, 1000);
+        ntt.sec = 0;
+        ntt.nsec = 0;
+        task = (jpthread_task_t *)jpqueue_head(&mgr->timer_queue);
+        if (task && task->type <= JPTHREAD_TIMER_REPEAT) {
+            jtime_clockntime_get(&nt);
+            if (!_check_expire(&task->wake_nt, &nt)) {
+                ntt = task->wake_nt;
+            } else {
+                jthread_mutex_unlock(&mgr->mtx);
+                continue;
+            }
+        }
+        jtime_ntime_madd(&nt, 1000);
         if (ntt.sec || ntt.nsec) {
-            if (nt.sec > ntt.sec) {
-                nt = ntt;
-            } else if (nt.sec == task->wake_nt.sec && nt.nsec > ntt.nsec) {
+            if ((nt.sec > ntt.sec) || (nt.sec == ntt.sec && nt.nsec > ntt.nsec)) {
                 nt = ntt;
             }
         }
-        jthread_cond_timedwait(&mgr->cond, &mgr->mtx, &nt);
+        jtimer_timeset(&mgr->ctx, &nt);
         jthread_mutex_unlock(&mgr->mtx);
+
+        jtimer_timewait(&mgr->ctx);
     }
 
     /* 销毁线程池时唤醒空闲的线程进行销毁 */
@@ -359,7 +371,7 @@ static jthread_ret_t _thread_main(void *arg)
     /* 等待任务线程退出 */
     while (mgr->thread_pheap.sel + mgr->task_pheap.sel) {
         jthread_mutex_unlock(&mgr->mtx);
-        jthread_msleep(1);
+        jthread_usleep(1);
         jthread_mutex_lock(&mgr->mtx);
     }
     jthread_mutex_unlock(&mgr->mtx);
@@ -368,7 +380,7 @@ static jthread_ret_t _thread_main(void *arg)
     jpheap_uninit(&mgr->task_pheap);
     jpheap_uninit(&mgr->thread_pheap);
     jthread_mutex_destroy(&mgr->mtx);
-    jthread_cond_destroy(&mgr->cond);
+    jtimer_uninit(&mgr->ctx) ;
     jheap_free((void *)mgr);
 
     return (jthread_ret_t)0;
@@ -397,7 +409,9 @@ jpthread_hd jpthread_init(int max_threads, int min_threads, int max_tasks, int s
     mgr->cnt = 0;
 
     jthread_mutex_init(&mgr->mtx);
-    jthread_cond_init(&mgr->cond);
+    if (jtimer_init(&mgr->ctx) < 0) {
+        goto err0;
+    }
 
     /* 初始化存储线程资源的内存池 */
     mgr->thread_pheap.size = sizeof(jpthread_thread_t);
@@ -440,8 +454,9 @@ err3:
 err2:
     jpheap_uninit(&mgr->thread_pheap);
 err1:
+    jtimer_uninit(&mgr->ctx) ;
+err0:
     jthread_mutex_destroy(&mgr->mtx);
-    jthread_cond_destroy(&mgr->cond);
     jheap_free((void *)mgr);
     return NULL;
 }
@@ -454,22 +469,22 @@ void jpthread_uninit(jpthread_hd hd, int wait_flag)
     if (wait_flag > 0) {
         jthread_mutex_lock(&mgr->mtx);
         mgr->running = 0;
-        jthread_cond_signal(&mgr->cond);
+        jtimer_wakeup(&mgr->ctx);
         jthread_mutex_unlock(&mgr->mtx);
         while (mgr->thread_pheap.sel + mgr->task_pheap.sel)
-            jthread_msleep(1);
+            jthread_usleep(1);
     } else {
         if (wait_flag) {
             while (mgr->task_pheap.sel)
-                jthread_msleep(1);
+                jthread_usleep(1);
         }
         jthread_mutex_lock(&mgr->mtx);
         mgr->running = 0;
-        jthread_cond_signal(&mgr->cond);
+        jtimer_wakeup(&mgr->ctx);
         jthread_mutex_unlock(&mgr->mtx);
         if (wait_flag) {
             while (mgr->thread_pheap.sel)
-                jthread_msleep(1);
+                jthread_usleep(1);
         }
     }
 }
@@ -485,7 +500,7 @@ jpthread_td jpthread_task_add(jpthread_hd hd, jpthread_cb exec_cb, jpthread_cb f
     if (!exec_cb)
         return td;
     if (cycle_ms || wake_ms)
-        jtime_utcntime_get(&nt);
+        jtime_clockntime_get(&nt);
 
 next:
     jthread_mutex_lock(&mgr->mtx);
@@ -518,14 +533,14 @@ next:
         task->type = cycle_ms ? JPTHREAD_TIMER_REPEAT : JPTHREAD_TIMER_ONCE;
         /* 延迟执行的任务直接加入到优先级队列 */
         task->state = JPTHREAD_IN_QUEUE;
-        jtime_utcntime_madd(&task->wake_nt, wake_ms);
+        jtime_ntime_madd(&task->wake_nt, wake_ms);
         jpqueue_add(&mgr->timer_queue, task);
         if (jpqueue_head(&mgr->timer_queue) == (void *)task)
-            jthread_cond_signal(&mgr->cond);
+            jtimer_wakeup(&mgr->ctx);
     } else {
         if (cycle_ms) {
             task->type = JPTHREAD_TIMER_REPEAT;
-            jtime_utcntime_madd(&task->wake_nt, cycle_ms);
+            jtime_ntime_madd(&task->wake_nt, cycle_ms);
         }
         task->state = JPTHREAD_IN_LIST;
         jdlist_add_tail(&task->list, &mgr->worker_head);
@@ -560,7 +575,7 @@ void jpthread_task_del(jpthread_hd hd, jpthread_td td)
             first = (jpthread_task_t *)jpqueue_head(&mgr->timer_queue);
             jpqueue_idel(&mgr->timer_queue, task->index);
             if (first == task)
-                jthread_cond_signal(&mgr->cond);
+                jtimer_wakeup(&mgr->ctx);
             DEL_TASK();
             break;
         default:
@@ -595,7 +610,7 @@ int jpthread_task_pause(jpthread_hd hd, jpthread_td td)
                 jpqueue_idel(&mgr->timer_queue, task->index);
                 jpqueue_add(&mgr->timer_queue, task);
                 if (first == task)
-                    jthread_cond_signal(&mgr->cond);
+                    jtimer_wakeup(&mgr->ctx);
                 break;
             default:
                 break;
@@ -616,14 +631,14 @@ int jpthread_task_resume(jpthread_hd hd, jpthread_td td, uint32_t cycle_ms, uint
     int ret = 0;
 
     /* 只有重复型任务才能恢复执行 */
-    jtime_utcntime_get(&nt);
+    jtime_clockntime_get(&nt);
     jthread_mutex_lock(&mgr->mtx);
     if (task->id && task->id == td.id && (task->type == JPTHREAD_TIMER_PAUSED || task->type == JPTHREAD_TIMER_REPEAT)) {
         first1 = (jpthread_task_t *)jpqueue_head(&mgr->timer_queue);
 
         task->type = JPTHREAD_TIMER_REPEAT;
         task->wake_nt = nt;
-        jtime_utcntime_madd(&task->wake_nt, wake_ms);
+        jtime_ntime_madd(&task->wake_nt, wake_ms);
         if (cycle_ms)
             task->cycle_ms = cycle_ms;
 
@@ -643,7 +658,7 @@ int jpthread_task_resume(jpthread_hd hd, jpthread_td td, uint32_t cycle_ms, uint
         jpqueue_add(&mgr->timer_queue, task);
         first2 = (jpthread_task_t *)jpqueue_head(&mgr->timer_queue);
         if (first1 == task || first2 == task)
-            jthread_cond_signal(&mgr->cond);
+            jtimer_wakeup(&mgr->ctx);
     } else {
         ret = -1;
     }

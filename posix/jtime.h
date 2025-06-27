@@ -5,6 +5,9 @@
 * https://github.com/lengjingzju/jcore     *
 *******************************************/
 #pragma once
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE     1   // timegm函数需要此定义
+#endif
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
@@ -75,7 +78,8 @@ typedef struct {
     uint32_t nsec;
 } jtime_nt_t;
 
-static inline void jtime_tm_to_jtm(const struct tm *tm, jtime_tm_t *jtm) // 内部接口
+/* 内部接口：系统分解时间转自定义分解时间 */
+static inline void jtime_tm_to_jtm(const struct tm *tm, jtime_tm_t *jtm)
 {
     jtm->year   = tm->tm_year + 1900;
     jtm->month  = tm->tm_mon + 1;
@@ -86,7 +90,8 @@ static inline void jtime_tm_to_jtm(const struct tm *tm, jtime_tm_t *jtm) // 内�
     jtm->sec    = tm->tm_sec;
 }
 
-static inline void jtime_jtm_to_tm(const jtime_tm_t *jtm, struct tm *tm) // 内部接口
+/* 内部接口：自定义分解时间转系统分解时间 */
+static inline void jtime_jtm_to_tm(const jtime_tm_t *jtm, struct tm *tm)
 {
     tm->tm_year = jtm->year - 1900;
     tm->tm_mon  = jtm->month - 1;
@@ -99,23 +104,22 @@ static inline void jtime_jtm_to_tm(const jtime_tm_t *jtm, struct tm *tm) // 内�
 
 /**
  * @brief   UTC的秒+毫秒时间转换为分解时间
- * @param   jmt [IN] 秒+毫秒时间结构体
+ * @param   jmt [IN] 秒+毫秒时间结构体(UTC)
  * @param   jtm [OUT] 分解时间结构体
  * @param   zone_sec [IN] 时区带来的偏移秒数
  * @return  无返回值
- * @note    jtm是本地分解时间时才需要传入zone_sec
+ * @note    要得到的jtm是本地分解时间时，才需要传入zone_sec；否则传入0得到UTC分解时间
  */
 static inline void jtime_mtime_to_tm(const jtime_mt_t *jmt, jtime_tm_t *jtm, int zone_sec)
 {
-    struct timeval tv;
 #ifdef __cplusplus
     struct tm tm;
     memset(&tm, 0, sizeof(tm));
 #else
     struct tm tm = {0};
 #endif
-    tv.tv_sec = jmt->sec + zone_sec;
-    gmtime_r(&tv.tv_sec, &tm);
+    time_t sec = jmt->sec + zone_sec;
+    gmtime_r(&sec, &tm);
     jtime_tm_to_jtm(&tm, jtm);
     jtm->msec = jmt->msec;
 }
@@ -123,10 +127,10 @@ static inline void jtime_mtime_to_tm(const jtime_mt_t *jmt, jtime_tm_t *jtm, int
 /**
  * @brief   分解时间转换为UTC的秒+毫秒时间
  * @param   jtm [IN] 分解时间结构体
- * @param   jmt [OUT] 秒+毫秒时间结构体
+ * @param   jmt [OUT] 秒+毫秒时间结构体(UTC)
  * @param   zone_sec [IN] 时区带来的偏移秒数
  * @return  无返回值
- * @note    jtm是UTC分解时间时才需要传入zone_sec
+ * @note    如果传入的jtm是本地分解时间时才需要传入zone_sec；否则jtm是UTC分解时间传入0
  */
 static inline void jtime_tm_to_mtime(const jtime_tm_t *jtm, jtime_mt_t *jmt, int zone_sec)
 {
@@ -137,8 +141,7 @@ static inline void jtime_tm_to_mtime(const jtime_tm_t *jtm, jtime_mt_t *jmt, int
     struct tm tm = {0};
 #endif
     jtime_jtm_to_tm(jtm, &tm);
-    mktime(&tm);
-    jmt->sec = tm.tm_sec + zone_sec;
+    jmt->sec = timegm(&tm) - zone_sec;
     jmt->msec = jtm->msec;
 }
 
@@ -194,7 +197,7 @@ static inline jtime_t jtime_utctime_make(const jtime_tm_t *jtm)
     struct tm tm = {0};
 #endif
     jtime_jtm_to_tm(jtm, &tm);
-    return mktime(&tm) + jtime_localutc_diff();
+    return timegm(&tm);
 }
 
 /**
@@ -261,8 +264,8 @@ static inline jtime_tm_t* jtime_utctime_get(jtime_tm_t *jtm, int zone_sec)
     struct tm tm = {0};
 #endif
     gettimeofday(&tv, NULL);
-    tv.tv_sec += zone_sec;
-    gmtime_r(&tv.tv_sec, &tm);
+    time_t sec = tv.tv_sec + zone_sec;
+    gmtime_r(&sec, &tm);
     jtime_tm_to_jtm(&tm, jtm);
     jtm->msec = JTIME_DIV_1E3(tv.tv_usec);
 
@@ -503,13 +506,58 @@ static inline void jtime_utcntime_get(jtime_nt_t *jnt)
 }
 
 /**
+ * @brief   获取clock的秒+毫秒时间
+ * @param   jmt [OUT] 秒+毫秒时间结构体
+ * @return  无返回值
+ * @note    无
+ */
+static inline void jtime_clockmtime_get(jtime_mt_t *jmt)
+{
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    jmt->sec = ts.tv_sec;
+    jmt->msec = JTIME_DIV_1E6(ts.tv_nsec);
+}
+
+/**
+ * @brief   获取clock的秒+微秒时间
+ * @param   jut [OUT] 秒+微秒时间结构体
+ * @return  无返回值
+ * @note    无
+ */
+static inline void jtime_clockutime_get(jtime_ut_t *jut)
+{
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    jut->sec = ts.tv_sec;
+    jut->usec = JTIME_DIV_1E3(ts.tv_nsec);
+}
+
+/**
+ * @brief   获取clock的秒+纳秒时间
+ * @param   jnt [OUT] 秒+纳秒时间结构体
+ * @return  无返回值
+ * @note    无
+ */
+static inline void jtime_clockntime_get(jtime_nt_t *jnt)
+{
+    struct timespec ts;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    jnt->sec = ts.tv_sec;
+    jnt->nsec = ts.tv_nsec;
+}
+
+/**
  * @brief   更新秒+纳秒时间结构体
  * @param   jnt [INOUT] 秒+纳秒时间结构体
  * @param   msec [IN] 要增加的毫秒数
  * @return  无返回值
  * @note    无
  */
-static inline void jtime_utcntime_madd(jtime_nt_t *jnt, uint32_t msec)
+static inline void jtime_ntime_madd(jtime_nt_t *jnt, uint32_t msec)
 {
     int sec = JTIME_DIV_1E3(msec);
     jnt->sec += sec;
