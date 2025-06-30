@@ -91,13 +91,13 @@ static inline void jtimer_uninit(struct jtimer_ctx *ctx)
 /**
  * @brief   提前唤醒定时器
  * @param   ctx [IN] 定时器会话管理结构
- * @return  无返回值
+ * @return  成功返回0；失败返回-1
  * @note    无
  */
-static inline void jtimer_wakeup(struct jtimer_ctx *ctx)
+static inline int jtimer_wakeup(struct jtimer_ctx *ctx)
 {
     uint64_t val = 1;
-    write(ctx->wake_fd, &val, sizeof(val));
+    return write(ctx->wake_fd, &val, sizeof(val)) < 0 ? -1 : 0;
 }
 
 /**
@@ -134,11 +134,9 @@ static inline int jtimer_timewait(struct jtimer_ctx *ctx)
     uint64_t val = 0;
     for (i = 0; i < n; ++i) {
         if (events[i].data.fd == ctx->timer_fd) {
-            read(ctx->timer_fd, &val, sizeof(val));
-            ret |= JTIMER_FLAG_EXPIRED;
+            ret |= read(ctx->timer_fd, &val, sizeof(val)) < 0 ? 0 : JTIMER_FLAG_EXPIRED;
         } else if (events[i].data.fd == ctx->wake_fd) {
-            read(ctx->wake_fd, &val, sizeof(val));
-            ret |= JTIMER_FLAG_AWAKENED;
+            ret |= read(ctx->wake_fd, &val, sizeof(val)) < 0 ? 0 : JTIMER_FLAG_AWAKENED;
         }
     }
 

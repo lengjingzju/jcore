@@ -14,17 +14,6 @@
 extern "C" {
 #endif
 
-#define timespec_after(ts, msec) do {                                   \
-    int sec = msec / 1000;                                              \
-    clock_gettime(CLOCK_REALTIME, &ts);                                 \
-    ts.tv_sec += sec;                                                   \
-    ts.tv_nsec += (msec - sec * 1000) * 1000000;                        \
-    if (ts.tv_nsec >= 1000000000) {                                     \
-        ts.tv_nsec -= 1000000000;                                       \
-        ts.tv_sec += 1;                                                 \
-    }                                                                   \
-} while(0)
-
 /**
  * @brief   互斥锁
  * @note    mutex都为jthread_mutex_t的指针
@@ -35,16 +24,16 @@ extern "C" {
 
 #define jthread_mutex_lock(mutex)       pthread_mutex_lock(mutex)
 #define jthread_mutex_unlock(mutex)     pthread_mutex_unlock(mutex)
-static inline int jthread_mutex_timelock(jthread_mutex_t *mutex, unsigned int msec)
-{
-    struct timespec ts;
-    timespec_after(ts, msec);
-    return pthread_mutex_timedlock(mutex, &ts);
-}
 static inline int jthread_mutex_timedlock(jthread_mutex_t *mutex, jtime_nt_t *jnt)
 {
     struct timespec ts = {.tv_sec = jnt->sec, .tv_nsec = jnt->nsec};
     return pthread_mutex_timedlock(mutex, &ts);
+}
+static inline int jthread_mutex_mtimelock(jthread_mutex_t *mutex, uint32_t msec)
+{
+    jtime_nt_t jnt;
+    jtime_ntime_after(&jnt, msec, 0); // 互斥锁没有以CLOCK_MONOTONIC为参考的延时
+    return jthread_mutex_timedlock(mutex, &jnt);
 }
 
 /**
@@ -72,25 +61,37 @@ static inline int jthread_mutex_timedlock(jthread_mutex_t *mutex, jtime_nt_t *jn
 
 /**
  * @brief   条件变量
- * @note    cond都为jthread_cond_t的指针，mutex都为jthread_mutex_t的指针
+ * @note    1. cond都为jthread_cond_t的指针，mutex都为jthread_mutex_t的指针
+ *          2. 使用超时条件变量时有区别：可选择初始化为系统单调时钟或初始化为日期时钟(默认)
  */
 #define jthread_cond_t                  pthread_cond_t
 #define jthread_cond_init(cond)         pthread_cond_init(cond, NULL)
 #define jthread_cond_destroy(cond)      pthread_cond_destroy(cond)
+static inline int jthread_cond_create(jthread_cond_t *cond, int mono_clock)
+{
+    if (!mono_clock)
+        return pthread_cond_init(cond, NULL); // 使用日期时钟
+    pthread_condattr_t attr;
+    pthread_condattr_init(&attr);
+    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);  // 使用单调时钟
+    int ret = pthread_cond_init(cond, &attr);
+    pthread_condattr_destroy(&attr);
+    return ret;
+}
 
 #define jthread_cond_signal(cond)       pthread_cond_signal(cond)
 #define jthread_cond_broadcast(cond)    pthread_cond_broadcast(cond)
 #define jthread_cond_wait(cond, mutex)  pthread_cond_wait(cond, mutex)
-static inline int jthread_cond_timewait(jthread_cond_t *cond, jthread_mutex_t *mutex, unsigned int msec)
-{
-    struct timespec ts;
-    timespec_after(ts, msec);
-    return pthread_cond_timedwait(cond, mutex, &ts);
-}
 static inline int jthread_cond_timedwait(jthread_cond_t *cond, jthread_mutex_t *mutex, jtime_nt_t *jnt)
 {
     struct timespec ts = {.tv_sec = jnt->sec, .tv_nsec = jnt->nsec};
     return pthread_cond_timedwait(cond, mutex, &ts);
+}
+static inline int jthread_cond_mtimewait(jthread_cond_t *cond, jthread_mutex_t *mutex, uint32_t msec, int mono_clock)
+{
+    jtime_nt_t jnt;
+    jtime_ntime_after(&jnt, msec, mono_clock);
+    return jthread_cond_timedwait(cond, mutex, &jnt);
 }
 
 /**
@@ -103,16 +104,16 @@ static inline int jthread_cond_timedwait(jthread_cond_t *cond, jthread_mutex_t *
 
 #define jthread_sem_post(sem)           sem_post(sem)
 #define jthread_sem_wait(sem)           sem_wait(sem)
-static inline int jthread_sem_timewait(jthread_sem_t *sem, unsigned int msec)
-{
-    struct timespec ts;
-    timespec_after(ts, msec);
-    return sem_timedwait(sem, &ts);
-}
 static inline int jthread_sem_timedwait(jthread_sem_t *sem, jtime_nt_t *jnt)
 {
     struct timespec ts = {.tv_sec = jnt->sec, .tv_nsec = jnt->nsec};
     return sem_timedwait(sem, &ts);
+}
+static inline int jthread_sem_mtimewait(jthread_sem_t *sem, uint32_t msec)
+{
+    jtime_nt_t jnt;
+    jtime_ntime_after(&jnt, msec, 0); // 信号量没有以CLOCK_MONOTONIC为参考的延时
+    return jthread_sem_timedwait(sem, &jnt);
 }
 
 /**
@@ -148,7 +149,6 @@ typedef jthread_ret_t (*jthread_run_t)(void*);
  * @brief   线程微秒级睡眠
  */
 #define jthread_usleep(usec)            jtime_usleep(usec)
-
 
 /**
  * @brief   等待线程退出

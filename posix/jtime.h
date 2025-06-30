@@ -568,6 +568,33 @@ static inline void jtime_ntime_madd(jtime_nt_t *jnt, uint32_t msec)
     }
 }
 
+/**
+ * @brief   获取当前时间延时后的时间
+ * @param   jnt [OUT] 保存延时后的时间
+ * @param   msec [IN] 延时毫秒数
+ * @param   mono_clock [IN] 时钟定义：0: CLOCK_REALTIME 日期实时时钟，1: CLOCK_MONOTONIC 系统单调时间
+ * @return  返回延时后的时间
+ * @note    无
+ */
+static inline void jtime_ntime_after(jtime_nt_t *jnt, uint32_t msec, int mono_clock)
+{
+    struct timespec ts;
+    clock_gettime(mono_clock ? CLOCK_MONOTONIC : CLOCK_REALTIME, &ts);
+
+    if (msec >= 1000) {
+        int sec = msec / 1000;
+        jnt->sec = ts.tv_sec + sec;
+        jnt->nsec = ts.tv_nsec + (msec - sec * 1000) * 1000000;
+    } else {
+        jnt->sec = ts.tv_sec;
+        jnt->nsec = ts.tv_nsec + msec * 1000000;
+    }
+    if (jnt->nsec >= 1000000000) {
+        jnt->nsec -= 1000000000;
+        jnt->sec += 1;
+    }
+}
+
 #ifdef __cplusplus
 }
 #endif
