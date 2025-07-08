@@ -5,14 +5,18 @@
 * https://github.com/lengjingzju/jcore     *
 *******************************************/
 #pragma once
-#ifndef _DEFAULT_SOURCE
-#define _DEFAULT_SOURCE     1   // timegm函数需要此定义
-#endif
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
 #include <sys/time.h>
 #include <unistd.h>
+
+/*
+ * 本接口提供三种时钟：
+ * 1. utc: UTC时钟(日历时钟)，从1970-01-01 00:00:00 UTC开始计数
+ * 2. local: 本地时钟(日历时钟)，UTC加上时区偏移
+ * 3. mono: 单调时钟，从系统启动开始计算时间
+ */
 
 #ifdef __cplusplus
 extern "C" {
@@ -299,7 +303,7 @@ static inline jtime_tm_t* jtime_utctime_geta(jtime_tm_t *jtm, int zone_sec)
 }
 
 /**
- * @brief   从本地分解时间设置系统时间
+ * @brief   从本地分解时间设置系统日历时间
  * @param   jtm [IN] 分解时间结构体
  * @return  成功返回0，失败返回-1
  * @note    无
@@ -314,7 +318,7 @@ static inline int jtime_localtime_set(const jtime_tm_t *jtm)
 }
 
 /**
- * @brief   从UTC分解时间设置系统时间
+ * @brief   从UTC分解时间设置系统日历时间
  * @param   jtm [IN] 分解时间结构体
  * @return  成功返回0，失败返回-1
  * @note    无
@@ -406,7 +410,7 @@ static inline uint64_t jtime_utcnsec_get(void)
  * @return  返回时间毫秒数
  * @note    无
  */
-static inline uint64_t jtime_clockmsec_get(void)
+static inline uint64_t jtime_monomsec_get(void)
 {
     uint64_t msec = 0;
     struct timespec ts;
@@ -421,7 +425,7 @@ static inline uint64_t jtime_clockmsec_get(void)
  * @return  返回时间微秒数
  * @note    无
  */
-static inline uint64_t jtime_clockusec_get(void)
+static inline uint64_t jtime_monousec_get(void)
 {
     uint64_t usec = 0;
     struct timespec ts;
@@ -436,7 +440,7 @@ static inline uint64_t jtime_clockusec_get(void)
  * @return  返回时间纳秒数
  * @note    无
  */
-static inline uint64_t jtime_clocknsec_get(void)
+static inline uint64_t jtime_mononsec_get(void)
 {
     uint64_t nsec = 0;
     struct timespec ts;
@@ -506,12 +510,12 @@ static inline void jtime_utcntime_get(jtime_nt_t *jnt)
 }
 
 /**
- * @brief   获取clock的秒+毫秒时间
+ * @brief   获取系统启动后的秒+毫秒时间
  * @param   jmt [OUT] 秒+毫秒时间结构体
  * @return  无返回值
  * @note    无
  */
-static inline void jtime_clockmtime_get(jtime_mt_t *jmt)
+static inline void jtime_monomtime_get(jtime_mt_t *jmt)
 {
     struct timespec ts;
 
@@ -521,12 +525,12 @@ static inline void jtime_clockmtime_get(jtime_mt_t *jmt)
 }
 
 /**
- * @brief   获取clock的秒+微秒时间
+ * @brief   获取系统启动后的秒+微秒时间
  * @param   jut [OUT] 秒+微秒时间结构体
  * @return  无返回值
  * @note    无
  */
-static inline void jtime_clockutime_get(jtime_ut_t *jut)
+static inline void jtime_monoutime_get(jtime_ut_t *jut)
 {
     struct timespec ts;
 
@@ -536,12 +540,12 @@ static inline void jtime_clockutime_get(jtime_ut_t *jut)
 }
 
 /**
- * @brief   获取clock的秒+纳秒时间
+ * @brief   获取系统启动后的秒+纳秒时间
  * @param   jnt [OUT] 秒+纳秒时间结构体
  * @return  无返回值
  * @note    无
  */
-static inline void jtime_clockntime_get(jtime_nt_t *jnt)
+static inline void jtime_monontime_get(jtime_nt_t *jnt)
 {
     struct timespec ts;
 
@@ -559,9 +563,33 @@ static inline void jtime_clockntime_get(jtime_nt_t *jnt)
  */
 static inline void jtime_ntime_madd(jtime_nt_t *jnt, uint32_t msec)
 {
-    int sec = JTIME_DIV_1E3(msec);
-    jnt->sec += sec;
-    jnt->nsec += (msec - sec * 1000) * 1000000;
+    if (msec >= 1000) {
+        int sec = JTIME_DIV_1E3(msec);
+        msec -= sec * 1000;
+        jnt->sec += sec;
+    }
+    jnt->nsec += msec * 1000000;
+    if (jnt->nsec >= 1000000000) {
+        jnt->nsec -= 1000000000;
+        jnt->sec += 1;
+    }
+}
+
+/**
+ * @brief   更新秒+纳秒时间结构体
+ * @param   jnt [INOUT] 秒+纳秒时间结构体
+ * @param   msec [IN] 要增加的纳秒数
+ * @return  无返回值
+ * @note    无
+ */
+static inline void jtime_ntime_nadd(jtime_nt_t *jnt, uint64_t nsec)
+{
+    if (nsec >= 1000000000) {
+        uint64_t sec = nsec / 1000000000;
+        nsec -= sec * 1000000000;
+        jnt->sec += sec;
+    }
+    jnt->nsec += nsec;
     if (jnt->nsec >= 1000000000) {
         jnt->nsec -= 1000000000;
         jnt->sec += 1;
@@ -572,7 +600,7 @@ static inline void jtime_ntime_madd(jtime_nt_t *jnt, uint32_t msec)
  * @brief   获取当前时间延时后的时间
  * @param   jnt [OUT] 保存延时后的时间
  * @param   msec [IN] 延时毫秒数
- * @param   mono_clock [IN] 时钟定义：0: CLOCK_REALTIME 日期实时时钟，1: CLOCK_MONOTONIC 系统单调时间
+ * @param   mono_clock [IN] 时钟定义：0: CLOCK_REALTIME UTC日历时钟，1: CLOCK_MONOTONIC 系统单调时钟
  * @return  返回延时后的时间
  * @note    无
  */

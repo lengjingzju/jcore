@@ -24,16 +24,32 @@ extern "C" {
 
 #define jthread_mutex_lock(mutex)       pthread_mutex_lock(mutex)
 #define jthread_mutex_unlock(mutex)     pthread_mutex_unlock(mutex)
-static inline int jthread_mutex_timedlock(jthread_mutex_t *mutex, jtime_nt_t *jnt)
+
+/**
+ * @brief   超时互斥锁
+ * @note    1. mutex都为jthread_tmutex_t的指针
+ *          2. linux上超时互斥锁和互斥锁没有区别
+ *             windows的CRITICAL_SECTION不支持超时，需要使用Mutex(性能较差)支持超时互斥锁机制
+ */
+#define jthread_tmutex_t                 pthread_mutex_t
+#define jthread_tmutex_init(mutex)       pthread_mutex_init(mutex, NULL)
+#define jthread_tmutex_destroy(mutex)    pthread_mutex_destroy(mutex)
+
+#define jthread_tmutex_lock(mutex)       pthread_mutex_lock(mutex)
+#define jthread_tmutex_unlock(mutex)     pthread_mutex_unlock(mutex)
+static inline int jthread_tmutex_timedlock(jthread_tmutex_t *mutex, jtime_nt_t *jnt)
 {
-    struct timespec ts = {.tv_sec = jnt->sec, .tv_nsec = jnt->nsec};
+    struct timespec ts = {.tv_sec = jnt->sec, .tv_nsec = (long)jnt->nsec};
     return pthread_mutex_timedlock(mutex, &ts);
 }
-static inline int jthread_mutex_mtimelock(jthread_mutex_t *mutex, uint32_t msec)
+static inline int jthread_tmutex_mtimelock(jthread_tmutex_t *mutex, uint32_t msec)
 {
+    if (msec == 0) // 超时为0时，尝试解锁
+        return pthread_mutex_trylock(mutex);
+
     jtime_nt_t jnt;
     jtime_ntime_after(&jnt, msec, 0); // 互斥锁没有以CLOCK_MONOTONIC为参考的延时
-    return jthread_mutex_timedlock(mutex, &jnt);
+    return jthread_tmutex_timedlock(mutex, &jnt);
 }
 
 /**
@@ -46,7 +62,8 @@ static inline int jthread_mutex_mtimelock(jthread_mutex_t *mutex, uint32_t msec)
 
 #define jthread_rwlock_rdlock(rwlock)   pthread_rwlock_rdlock(rwlock)
 #define jthread_rwlock_wrlock(rwlock)   pthread_rwlock_wrlock(rwlock)
-#define jthread_rwlock_unlock(rwlock)   pthread_rwlock_unlock(rwlock)
+#define jthread_rwlock_rdunlock(rwlock) pthread_rwlock_unlock(rwlock)
+#define jthread_rwlock_wrunlock(rwlock) pthread_rwlock_unlock(rwlock)
 
 /**
  * @brief   自旋锁
@@ -64,33 +81,37 @@ static inline int jthread_mutex_mtimelock(jthread_mutex_t *mutex, uint32_t msec)
  * @note    1. cond都为jthread_cond_t的指针，mutex都为jthread_mutex_t的指针
  *          2. 使用超时条件变量时有区别：可选择初始化为系统单调时钟或初始化为日期时钟(默认)
  */
-#define jthread_cond_t                  pthread_cond_t
-#define jthread_cond_init(cond)         pthread_cond_init(cond, NULL)
-#define jthread_cond_destroy(cond)      pthread_cond_destroy(cond)
-static inline int jthread_cond_create(jthread_cond_t *cond, int mono_clock)
+typedef struct _jthread_cond {
+    int mono_clock; // 0: 日期时钟，1: 系统单调时钟
+    pthread_cond_t cond_var;
+} jthread_cond_t;
+static inline int jthread_cond_init(jthread_cond_t *cond, int mono_clock)
 {
-    if (!mono_clock)
-        return pthread_cond_init(cond, NULL); // 使用日期时钟
+    cond->mono_clock = mono_clock;
+    if (cond->mono_clock == 0)
+        return pthread_cond_init(&cond->cond_var, NULL); // 使用日历时钟
+
     pthread_condattr_t attr;
     pthread_condattr_init(&attr);
     pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);  // 使用单调时钟
-    int ret = pthread_cond_init(cond, &attr);
+    int ret = pthread_cond_init(&cond->cond_var, &attr);
     pthread_condattr_destroy(&attr);
     return ret;
 }
+#define jthread_cond_destroy(cond)      pthread_cond_destroy(&(cond)->cond_var)
 
-#define jthread_cond_signal(cond)       pthread_cond_signal(cond)
-#define jthread_cond_broadcast(cond)    pthread_cond_broadcast(cond)
-#define jthread_cond_wait(cond, mutex)  pthread_cond_wait(cond, mutex)
+#define jthread_cond_signal(cond)       pthread_cond_signal(&(cond)->cond_var)
+#define jthread_cond_broadcast(cond)    pthread_cond_broadcast(&(cond)->cond_var)
+#define jthread_cond_wait(cond, mutex)  pthread_cond_wait(&(cond)->cond_var, mutex)
 static inline int jthread_cond_timedwait(jthread_cond_t *cond, jthread_mutex_t *mutex, jtime_nt_t *jnt)
 {
-    struct timespec ts = {.tv_sec = jnt->sec, .tv_nsec = jnt->nsec};
-    return pthread_cond_timedwait(cond, mutex, &ts);
+    struct timespec ts = {.tv_sec = jnt->sec, .tv_nsec = (long)jnt->nsec};
+    return pthread_cond_timedwait(&cond->cond_var, mutex, &ts);
 }
-static inline int jthread_cond_mtimewait(jthread_cond_t *cond, jthread_mutex_t *mutex, uint32_t msec, int mono_clock)
+static inline int jthread_cond_mtimewait(jthread_cond_t *cond, jthread_mutex_t *mutex, uint32_t msec)
 {
     jtime_nt_t jnt;
-    jtime_ntime_after(&jnt, msec, mono_clock);
+    jtime_ntime_after(&jnt, msec, cond->mono_clock);
     return jthread_cond_timedwait(cond, mutex, &jnt);
 }
 
@@ -106,11 +127,14 @@ static inline int jthread_cond_mtimewait(jthread_cond_t *cond, jthread_mutex_t *
 #define jthread_sem_wait(sem)           sem_wait(sem)
 static inline int jthread_sem_timedwait(jthread_sem_t *sem, jtime_nt_t *jnt)
 {
-    struct timespec ts = {.tv_sec = jnt->sec, .tv_nsec = jnt->nsec};
+    struct timespec ts = {.tv_sec = jnt->sec, .tv_nsec = (long)jnt->nsec};
     return sem_timedwait(sem, &ts);
 }
 static inline int jthread_sem_mtimewait(jthread_sem_t *sem, uint32_t msec)
 {
+    if (msec == 0) // 超时为0时，尝试等待信号量
+        return sem_trywait(sem);
+
     jtime_nt_t jnt;
     jtime_ntime_after(&jnt, msec, 0); // 信号量没有以CLOCK_MONOTONIC为参考的延时
     return jthread_sem_timedwait(sem, &jnt);
@@ -151,6 +175,20 @@ typedef jthread_ret_t (*jthread_run_t)(void*);
 #define jthread_usleep(usec)            jtime_usleep(usec)
 
 /**
+ * @brief   线程让出CPU
+ * @note    yield和sleep的区别
+ *          1. yield让出CPU后仍可能立即返回并继续执行原进程，不会进入阻塞状态
+ *          2. sleep使线程进入阻塞状态，直到指定时间结束或被信号唤醒
+ */
+#define jthread_yield()                 pthread_yield()
+
+/**
+ * @brief   线程退出
+ * @note    retval是存储退出码的void*指针，可以为NULL
+ */
+#define jthread_exit(retval)            pthread_exit(retval)
+
+/**
  * @brief   等待线程退出
  * @note    如果没有在线程函数调用jthread_detach，就需要在主线程等待线程退出，否则导致资源泄露
  */
@@ -174,7 +212,7 @@ typedef jthread_ret_t (*jthread_run_t)(void*);
  * @param   attr [IN] 线程的属性
  * @param   fn [IN] 线程函数指针
  * @param   arg [IN] 传给线程函数的值
- * @return  成功返回0; 失败返回-1
+ * @return  成功返回0; 失败返回1
  * @note    注意传递给线程函数的arg需要是堆变量或静态变量
  */
 static inline int jthread_create(jthread_t *thd, const jthread_attr_t *attr, jthread_run_t fn, void *arg)
@@ -188,11 +226,11 @@ static inline int jthread_create(jthread_t *thd, const jthread_attr_t *attr, jth
         int min_stack = 1 << 14;
 
         if (pthread_attr_init(&tattr)) {
-            return -1;
+            return 1;
         }
         if (pthread_attr_setstacksize(&tattr, (size_t)(attr->stack_size > min_stack ? attr->stack_size : min_stack))) {
             pthread_attr_destroy(&tattr);
-            return -1;
+            return 1;
         }
         ret = pthread_create(thd, &tattr, fn, arg);
         if (!ret && attr->detach_flag)
@@ -200,7 +238,7 @@ static inline int jthread_create(jthread_t *thd, const jthread_attr_t *attr, jth
         pthread_attr_destroy(&tattr);
     }
 
-    return ret == 0 ? 0 : -1;
+    return ret == 0 ? 0 : 1;
 }
 
 #ifdef __cplusplus

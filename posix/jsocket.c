@@ -302,6 +302,23 @@ int jsocket_sockaddr_parse(const jsocket_saddr_t *saddr, jsocket_jaddr_t *jaddr)
     return ret;
 }
 
+int jsocket_sockaddr_equal(const jsocket_saddr_t *saddr1, const jsocket_saddr_t *saddr2)
+{
+    if (saddr1->s.sa.sa_family != saddr2->s.sa.sa_family)
+        return 0;
+    switch (saddr1->s.sa.sa_family) {
+    case AF_INET:
+        return (saddr1->s.sin.sin_port == saddr2->s.sin.sin_port)
+            && (saddr1->s.sin.sin_addr.s_addr == saddr2->s.sin.sin_addr.s_addr);
+    case AF_INET6:
+        return (saddr1->s.sin6.sin6_port == saddr2->s.sin6.sin6_port)
+            && (memcmp(&saddr1->s.sin6.sin6_addr, &saddr2->s.sin6.sin6_addr, sizeof(saddr1->s.sin6.sin6_addr)) == 0);
+    default:
+        return (memcmp(&saddr1->s.sa, &saddr2->s.sa, sizeof(saddr1->s.sa)) == 0);
+    }
+    return 0;
+}
+
 int jsocket_sockaddr_get(jsocket_fd_t sfd, jsocket_jaddr_t *jaddr)
 {
     jsocket_saddr_t saddr;

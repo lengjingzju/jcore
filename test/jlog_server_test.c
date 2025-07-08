@@ -77,7 +77,7 @@ int main(void)
         }
         *arg = afd;
 
-        if (jthread_create(&tid, &attr, jlog_serv_run, arg) < 0) {
+        if (jthread_create(&tid, &attr, jlog_serv_run, arg) != 0) {
             jsocket_close(afd);
             jheap_free(arg);
             LLOG_ERROR("jthread_create() failed!\n");

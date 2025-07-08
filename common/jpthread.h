@@ -62,16 +62,21 @@ void jpthread_uninit(jpthread_hd hd, int wait_flag);
  * @param   exec_cb [IN] 执行任务的回调函数，不能为NULL
  * @param   free_cb [IN] 销毁任务资源args的回调函数，无资源时为NULL
  * @param   args [IN] 任务的回调函数传入的参数
- * @param   cycle_ms [IN] 任务执行的周期(毫秒)
- * @param   wake_ms [IN] 任务延迟执行的时间(毫秒)
+ * @param   cycle_ns [IN] 任务执行的周期(纳秒)
+ * @param   wake_ns [IN] 任务延迟执行的时间(纳秒)
  * @return  成功返回任务句柄; 失败返回的任务句柄的ptr和id都为零
  * @note    后续所有任务操作都是以任务句柄为基础，任务类型有三种：
- *          1. 当cycle_ms和wake_ms为零时，创建的是普通任务，普通任务执行完后自动销毁
- *          2. 当cycle_ms为零且wake_ms不为零时，创建的是单次定时器任务，单次定时器任务执行完后自动销毁
- *          3. 当cycle_ms不为零时，创建的是重复定时器任务，需要del显式销毁，可以pause暂停和resume恢复
+ *          1. 当cycle_ns和wake_ns为零时，创建的是普通任务，普通任务执行完后自动销毁
+ *          2. 当cycle_ns为零且wake_ns不为零时，创建的是单次定时器任务，单次定时器任务执行完后自动销毁
+ *          3. 当cycle_ns不为零时，创建的是重复定时器任务，需要del显式销毁，可以pause暂停和resume恢复
+ *          4. 周期单位为纳秒并不是周期可以设置为小于1ms，而是为减小周期误差，例如视频帧率为30fps，周期使用毫秒单位就误差较大
  */
 jpthread_td jpthread_task_add(jpthread_hd hd, jpthread_cb exec_cb, jpthread_cb free_cb, void *args,
-    uint32_t cycle_ms, uint32_t wake_ms);
+    uint64_t cycle_ns, uint64_t wake_ns);
+static inline jpthread_td jpthread_worker_add(jpthread_hd hd, jpthread_cb exec_cb, jpthread_cb free_cb, void *args)
+{
+    return jpthread_task_add(hd, exec_cb, free_cb, args, 0, 0);
+}
 
 /**
  * @brief   销毁任务
@@ -95,12 +100,12 @@ int jpthread_task_pause(jpthread_hd hd, jpthread_td td);
  * @brief   恢复重复定时器任务
  * @param   hd [IN] 线程池句柄
  * @param   td [IN] 任务句柄
- * @param   cycle_ms [IN] 任务执行的新周期(毫秒)，如果为0，不改变原有周期
- * @param   wake_ms [IN] 任务延迟执行的时间(毫秒)
+ * @param   cycle_ns [IN] 任务执行的新周期(纳秒)，如果为0，不改变原有周期
+ * @param   wake_ns [IN] 任务延迟执行的时间(纳秒)
  * @return  成功返回0，未操作返回-1
  * @note    用于恢复重复定时器任务或修改它的执行周期
  */
-int jpthread_task_resume(jpthread_hd hd, jpthread_td td, uint32_t cycle_ms, uint32_t wake_ms);
+int jpthread_task_resume(jpthread_hd hd, jpthread_td td, uint64_t cycle_ns, uint64_t wake_ns);
 
 #ifdef __cplusplus
 }

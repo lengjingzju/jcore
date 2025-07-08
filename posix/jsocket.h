@@ -191,6 +191,15 @@ int jsocket_sockaddr_fill(jsocket_saddr_t *saddr, const jsocket_jaddr_t *jaddr);
 int jsocket_sockaddr_parse(const jsocket_saddr_t *saddr, jsocket_jaddr_t *jaddr);
 
 /**
+ * @brief   比较socket内部的数据结构体是否相等
+ * @param   saddr1 [IN] socket内部的数据结构体1
+ * @param   saddr2 [IN] socket内部的数据结构体2
+ * @return  相等返回1; 不等返回0
+ * @note    无
+ */
+int jsocket_sockaddr_equal(const jsocket_saddr_t *saddr1, const jsocket_saddr_t *saddr2);
+
+/**
  * @brief   获取本端可读的IP地址和端口
  * @param   sfd [IN] socket描述符
  * @param   jaddr [OUT] 可读的IP地址和端口

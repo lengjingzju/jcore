@@ -92,7 +92,7 @@ int main(void)
 
         num = TEST_THREADS;
         for (i = 0; i < num; ++i) {
-            if (jthread_create(&tids[i], &attr, jlog_client_run, NULL) < 0) {
+            if (jthread_create(&tids[i], &attr, jlog_client_run, NULL) != 0) {
                 LLOG_ERROR("jthread_create() failed!\n");
                 ret = -1;
                 break;

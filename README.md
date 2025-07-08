@@ -67,7 +67,6 @@ C++ STL的容器内部实现原理与JCore中的数据结构的核心原理基�
     * C++ STL对应：`std::list`、`std::forward_list`、`std::stack`、`std::queue`、`std::deque`、`std::stack`
     * 特点：
         * jlist.h实现：双向链表类似Linux内核的双向链表设计，节点需要两个指针；单向循环链表更节省内存，仅需一个指针
-        * jlist.h实现：双向链表类似Linux内核的双向链表设计，节点需要两个指针；单向循环链表更节省内存，仅需一个指针
         * jlist.sh实现：记录类型，由用户通过运行脚本生成自己的双向链表实现，使用内存池，节点记录的是整数序号而不是指针
             * Makefile中使用jlist.sh自动生成了jplist.c和jplist.h，实现了节点数据是void *的双向链表
 
