@@ -14,7 +14,7 @@
 static void timer_cb(void *args)
 {
     char *str = (char *)args;
-    printf("%s: %llu\n", str ? str : __func__, (unsigned long long)jtime_clockusec_get());
+    printf("%s: %llu\n", str ? str : __func__, (unsigned long long)jtime_monousec_get());
 }
 
 static void free_cb(void *args)
@@ -30,14 +30,14 @@ static void test_cb(void *args)
 static int test_speed(int max_threads)
 {
     int i = 0;
-    unsigned long long usec = (unsigned long long)jtime_clockusec_get();
+    unsigned long long usec = (unsigned long long)jtime_monousec_get();
     jpthread_hd hd = jpthread_init(max_threads, 1, 65536, 0);
 
     for (i = 0; i < 10000000; ++i)
         jpthread_task_add(hd, test_cb, NULL, NULL, 0, 0);
 
     jpthread_uninit(hd, -1);
-    printf("threads=%d, interval=%lld\n", max_threads, jtime_clockusec_get() - usec);
+    printf("threads=%d, interval=%lld\n", max_threads, jtime_monousec_get() - usec);
     jthread_msleep(1);
 
     return 0;

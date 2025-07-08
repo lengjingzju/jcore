@@ -153,7 +153,7 @@ next:
         jthread_mutex_unlock(&mgr->mtx);
         task->exec_cb(task->args); /* 执行任务 */
         if (task->type == JPTHREAD_TIMER_REPEAT)
-            jtime_clockntime_get(&nt);
+            jtime_monontime_get(&nt);
 
         jthread_mutex_lock(&mgr->mtx);
         if (mgr->running) {
@@ -232,7 +232,7 @@ static jpthread_thread_t *_thread_wake(jpthread_mgr_t *mgr)
         return NULL;
 
     thread->running = 1;
-    jthread_cond_init(&thread->cond);
+    jthread_cond_init(&thread->cond, 0);
     thread->mgr = mgr;
     jdlist_init_head(&thread->list);
 
@@ -263,7 +263,7 @@ static jthread_ret_t _thread_main(void *arg)
 
     jthread_setname("jpthread_main");
     while (1) {
-        jtime_clockntime_get(&nt);
+        jtime_monontime_get(&nt);
         jthread_mutex_lock(&mgr->mtx);
         if (!mgr->running) {
             jthread_mutex_unlock(&mgr->mtx);
@@ -318,7 +318,7 @@ static jthread_ret_t _thread_main(void *arg)
         ntt.nsec = 0;
         task = (jpthread_task_t *)jpqueue_head(&mgr->timer_queue);
         if (task && task->type <= JPTHREAD_TIMER_REPEAT) {
-            jtime_clockntime_get(&nt);
+            jtime_monontime_get(&nt);
             if (!_check_expire(&task->wake_nt, &nt)) {
                 ntt = task->wake_nt;
             } else {
@@ -335,7 +335,7 @@ static jthread_ret_t _thread_main(void *arg)
         jtimer_timeset(&mgr->ctx, &nt);
         jthread_mutex_unlock(&mgr->mtx);
 
-        jtimer_timewait(&mgr->ctx);
+        jtimer_timewait(&mgr->ctx, 1000);
     }
 
     /* 销毁线程池时唤醒空闲的线程进行销毁 */
@@ -500,7 +500,7 @@ jpthread_td jpthread_task_add(jpthread_hd hd, jpthread_cb exec_cb, jpthread_cb f
     if (!exec_cb)
         return td;
     if (cycle_ms || wake_ms)
-        jtime_clockntime_get(&nt);
+        jtime_monontime_get(&nt);
 
 next:
     jthread_mutex_lock(&mgr->mtx);
@@ -631,7 +631,7 @@ int jpthread_task_resume(jpthread_hd hd, jpthread_td td, uint32_t cycle_ms, uint
     int ret = 0;
 
     /* 只有重复型任务才能恢复执行 */
-    jtime_clockntime_get(&nt);
+    jtime_monontime_get(&nt);
     jthread_mutex_lock(&mgr->mtx);
     if (task->id && task->id == td.id && (task->type == JPTHREAD_TIMER_PAUSED || task->type == JPTHREAD_TIMER_REPEAT)) {
         first1 = (jpthread_task_t *)jpqueue_head(&mgr->timer_queue);

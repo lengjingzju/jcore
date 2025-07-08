@@ -27,7 +27,7 @@ int jperf_process_cpu_usage(jperf_cpu_usage_t *last_usage)
     fclose(fp);
 
     cpu_usage.run_cost = utime + stime + cutime + cstime;
-    cpu_usage.total_cost = jtime_clockmsec_get() * sysconf(_SC_NPROCESSORS_ONLN) * sysconf(_SC_CLK_TCK) / 1000;
+    cpu_usage.total_cost = jtime_monomsec_get() * sysconf(_SC_NPROCESSORS_ONLN) * sysconf(_SC_CLK_TCK) / 1000;
     if (last_usage->total_cost && cpu_usage.total_cost > last_usage->total_cost)
         percent = (cpu_usage.run_cost - last_usage->run_cost) * 100 / (cpu_usage.total_cost - last_usage->total_cost);
     *last_usage = cpu_usage;
@@ -165,7 +165,7 @@ int jperf_system_net_usage(jperf_net_usage_t *last_usage)
     }
     fclose(fp);
 
-    net_usage.sys_msec = jtime_clockmsec_get();
+    net_usage.sys_msec = jtime_monomsec_get();
 
     if (last_usage->sys_msec && net_usage.sys_msec > last_usage->sys_msec) {
         diff = net_usage.sys_msec - last_usage->sys_msec;

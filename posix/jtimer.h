@@ -120,15 +120,16 @@ static inline void jtimer_timeset(struct jtimer_ctx *ctx, jtime_nt_t *wake_nt)
 /**
  * @brief   等待定时器唤醒
  * @param   ctx [IN] 定时器会话管理结构
+ * @param   msec [IN] 等待最大超时时间，小于0时永远等待
  * @return  返回唤醒的原因
  * @note    不要在锁保护区间调用本接口；注意可能要用“与”判断为什么唤醒
  */
-static inline int jtimer_timewait(struct jtimer_ctx *ctx)
+static inline int jtimer_timewait(struct jtimer_ctx *ctx, int msec)
 {
 #define JTIMER_FLAG_EXPIRED     (1 << 0)    // 定时时间到被唤醒
 #define JTIMER_FLAG_AWAKENED    (1 << 1)    // 被event唤醒(可能是提前唤醒)
     struct epoll_event events[2];
-    int n = epoll_wait(ctx->epoll_fd, events, 2, 1000);
+    int n = epoll_wait(ctx->epoll_fd, events, 2, msec >= 0 ? msec : -1);
     int i = 0;
     int ret = 0;
     uint64_t val = 0;
