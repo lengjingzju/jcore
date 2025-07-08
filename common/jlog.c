@@ -930,7 +930,7 @@ static jthread_ret_t jlog_run(void *args)
     jthread_setname("jlog_flush");
     while (mgr->inited) {
         jthread_mutex_lock(&mgr->cmtx);
-        jthread_cond_mtimewait(&mgr->cond, &mgr->cmtx, JLOG_SLEEP_MS, 1);
+        jthread_cond_mtimewait(&mgr->cond, &mgr->cmtx, JLOG_SLEEP_MS);
         jthread_mutex_unlock(&mgr->cmtx);
         jlog_flush();
     }
@@ -1036,7 +1036,7 @@ int jlog_init(const jlog_cfg_t *cfg)
 
     jthread_mutex_init(&mgr->cmtx);
     jthread_mutex_init(&mgr->mtx);
-    jthread_cond_create(&mgr->cond, 1);
+    jthread_cond_init(&mgr->cond, 1);
     mgr->inited = 1;
 
     attr.stack_size = JLOG_STACK_SIZE;
