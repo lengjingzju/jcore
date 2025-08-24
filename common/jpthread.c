@@ -668,3 +668,46 @@ end:
 
     return ret;
 }
+
+int jpthread_task_reset(jpthread_hd hd, jpthread_td td, uint64_t cycle_ns, uint64_t wake_ns)
+{
+    jpthread_mgr_t *mgr = (jpthread_mgr_t *)hd;
+    jpthread_task_t *task = (jpthread_task_t *)td.ptr, *first1 = NULL, *first2 = NULL;
+    jtime_nt_t nt = {0};
+    int ret = 0;
+
+    /* 只有重复型任务才能重设 */
+    jtime_monontime_get(&nt);
+    jthread_mutex_lock(&mgr->mtx);
+    if (task->id && task->id == td.id && (task->type == JPTHREAD_TIMER_PAUSED || task->type == JPTHREAD_TIMER_REPEAT)) {
+        if (cycle_ns)
+            task->cycle_ns = cycle_ns;
+
+        if (task->state == JPTHREAD_IN_QUEUE) {
+            jtime_nt_t wake_nt = nt;
+            jtime_ntime_nadd(&wake_nt, wake_ns);
+            if (task->type == JPTHREAD_TIMER_PAUSED || _check_expire(&task->wake_nt, &wake_nt)) {
+                task->type = JPTHREAD_TIMER_REPEAT;
+                task->wake_nt = wake_nt;
+
+                first1 = (jpthread_task_t *)jpqueue_head(&mgr->timer_queue);
+                jpqueue_idel(&mgr->timer_queue, task->index);
+                jpqueue_add(&mgr->timer_queue, task);
+                first2 = (jpthread_task_t *)jpqueue_head(&mgr->timer_queue);
+                if (first1 == task || first2 == task)
+                    jtimer_wakeup(&mgr->ctx);
+            }
+        } else {
+            task->type = JPTHREAD_TIMER_REPEAT;
+            task->wake_nt = nt;
+            jtime_ntime_nadd(&task->wake_nt, wake_ns);
+        }
+    } else {
+        ret = -1;
+    }
+
+    jthread_mutex_unlock(&mgr->mtx);
+
+    return ret;
+}
+

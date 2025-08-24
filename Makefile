@@ -7,14 +7,6 @@
 
 PACKAGE_NAME    = jcore
 
-majorver       := $(shell cat common/jlog_core.h | grep JCORE_VERSION | sed 's/.*0x//g' | cut -b 1-2 | sed 's/^0//g')
-minorver       := $(shell cat common/jlog_core.h | grep JCORE_VERSION | sed 's/.*0x//g' | cut -b 3-4 | sed 's/^0//g')
-patchver       := $(shell cat common/jlog_core.h | grep JCORE_VERSION | sed 's/.*0x//g' | cut -b 5-6 | sed 's/^0//g')
-
-lib            := jcore
-staticlib      := lib$(lib).a
-sharedlib      := lib$(lib).so $(majorver) $(minorver) $(patchver)
-
 OSDIR          ?= posix
 CPFLAGS        += -D_GNU_SOURCE -Icommon -I$(OSDIR) -Wno-unused-parameter -Wno-unused-result
 CXXFLAGS       += -Wno-missing-field-initializers
@@ -75,6 +67,9 @@ HASH_CMD       := $(shell pwd)/template/jhashmap.sh
 $(OBJ_PREFIX)/jphashmap.c $(OBJ_PREFIX)/jphashmap.h: $(HASH_CMD)
 	@mkdir -p $(OBJ_PREFIX) && cd $(OBJ_PREFIX) && $(HASH_CMD) jphashmap "struct jphashmap" "void*"
 
+lib            := jcore
+staticlib      := lib$(lib).a
+sharedlib      := lib$(lib).so $(call get_version,common/jlog_core.h,JCORE_VERSION, )
 jcore-srcs     := $(wildcard $(OSDIR)/*.c common/*.c) $(ASRCS)
 $(eval $(call add-liba-build,$(staticlib),$(jcore-srcs)))
 $(eval $(call add-libso-build,$(sharedlib),$(jcore-srcs),-pthread))
@@ -148,5 +143,5 @@ INSTALL_PKGCONFIGS := pcfiles/*
 $(eval $(call install_obj,pkgconfig))
 
 install: install_hdrs install_libs install_bins install_pkgconfigs
-	@sed -i "s/@Version@/$(majorver).$(minorver).$(patchver)/g" $(INS_PREFIX)$(pkgconfigdir)/jcore.pc
+	@sed -i "s/@Version@/$(call get_version,common/jlog_core.h,JCORE_VERSION,.)/g" $(INS_PREFIX)$(pkgconfigdir)/jcore.pc
 	@echo "Install $(PACKAGE_NAME) to $(INS_PREFIX) Done."

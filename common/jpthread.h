@@ -107,6 +107,19 @@ int jpthread_task_pause(jpthread_hd hd, jpthread_td td);
  */
 int jpthread_task_resume(jpthread_hd hd, jpthread_td td, uint64_t cycle_ns, uint64_t wake_ns);
 
+/**
+ * @brief   重设重复定时器任务
+ * @param   hd [IN] 线程池句柄
+ * @param   td [IN] 任务句柄
+ * @param   cycle_ns [IN] 任务执行的新周期(纳秒)，如果为0，不改变原有周期
+ * @param   wake_ns [IN] 任务延迟执行的时间(纳秒)
+ * @return  成功返回0，未操作返回-1
+ * @note    reset和resume接口的区别主要体现在对wake_ns的处理上：
+ *          1. resume接口如果task不是正在执行，无条件wake_ns后执行
+ *          2. reset接口如果task不是正在执行，下次执行时间取原预定时间和wake_ns后时间的较早者
+ */
+int jpthread_task_reset(jpthread_hd hd, jpthread_td td, uint64_t cycle_ns, uint64_t wake_ns);
+
 #ifdef __cplusplus
 }
 #endif

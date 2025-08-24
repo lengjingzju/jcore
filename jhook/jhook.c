@@ -67,12 +67,18 @@ void *jhook_calloc(size_t nmemb, size_t size)
 
 void *jhook_realloc(void *ptr, size_t size)
 {
-    jhook_delptr(ptr, true);
-    ptr = __libc_realloc(ptr, size + jhook_tailnum());
-    if (!ptr)
+    void *nptr = __libc_realloc(ptr, size + jhook_tailnum());
+    if (!nptr)
         return NULL;
-    jhook_addptr(ptr, size, __builtin_return_address(0));
-    return ptr;
+    if (ptr == nptr) {
+        jhook_delptr(ptr, true);
+        jhook_addptr(nptr, size, __builtin_return_address(0));
+    } else {
+        /* 地址有变化，说明分配新的内存，再复制旧数据，最后销毁旧内存 */
+        jhook_addptr(nptr, size, __builtin_return_address(0));
+        jhook_delptr(ptr, true);
+    }
+    return nptr;
 }
 
 char *jhook_strdup(const char *s)
