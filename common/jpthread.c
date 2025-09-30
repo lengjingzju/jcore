@@ -340,7 +340,7 @@ static jthread_ret_t _thread_main(void *arg)
 
     /* 销毁线程池时唤醒空闲的线程进行销毁 */
     jthread_mutex_lock(&mgr->mtx);
-    jdlist_for_each_entry_safe(thread, nthread, &mgr->thread_head, list) {
+    jdlist_for_each_entry_safe(thread, nthread, &mgr->thread_head, list, jpthread_thread_t) {
         jdlist_del(&thread->list);
         --mgr->pending_threads;
         jthread_cond_signal(&thread->cond);

@@ -19,7 +19,7 @@ static void list_print_all(void)
     int *node;
 
     printf("All list nodes (%d): ", root->num);
-    jplist_for_each_entry(node, root) {
+    jplist_for_each_entry(node, root, int) {
         printf("%d ", *node);
     }
 }
@@ -30,7 +30,7 @@ static void list_del_all(void)
     struct jplist_pool *pool = &s_list_pool;
     int *node, *next;
 
-    jplist_for_each_entry_safe(node, next, root) {
+    jplist_for_each_entry_safe(node, next, root, int) {
         jplist_del(root, node);
         pool->free(pool, node);
     }
@@ -78,7 +78,7 @@ static int list_del_node(int value)
     struct jplist_pool *pool = &s_list_pool;
     int *node = NULL;
 
-    jplist_for_each_entry(node, root) {
+    jplist_for_each_entry(node, root, int) {
         if (*node == value)
             goto next;
     }

@@ -219,7 +219,7 @@ static int jlog_head(const char *tbuf, int level, const jlog_str_t *module, cons
     *p++ = ']';
     *p++ = ' ';
 
-    return p - buf;
+    return (int)(p - buf);
 }
 
 static inline int _jlog_wsize_get(jlog_jbuf_t *jbuf)
@@ -779,7 +779,7 @@ static int jlog_check_network(void)
             jcfg->zone_sec = jtime_localutc_diff();
             rlen = jlog_head(NULL, JLOG_LEVEL_WARN, &g_jlog_none, &g_hb_type, ebuf, sizeof(ebuf));
             ebuf[rlen++] = '\n';
-            wlen = jsocket_send_(ncfg->fd, ebuf, rlen, 0);
+            wlen = (int)jsocket_send_(ncfg->fd, ebuf, rlen, 0);
             if (wlen < 0) {
                 jsocket_close(ncfg->fd);
                 goto err;
@@ -869,7 +869,7 @@ static void jlog_flush(void)
         send_flag = 0;
         rlen = jlog_check_overflow(ebuf, sizeof(ebuf));
         if (rlen) {
-            wlen = jsocket_send_(jcfg->ncfg.fd, ebuf, rlen, 0);
+            wlen = (int)jsocket_send_(jcfg->ncfg.fd, ebuf, rlen, 0);
             if (wlen < 0) {
                 jsocket_close(jcfg->ncfg.fd);
                 break;
@@ -879,7 +879,7 @@ static void jlog_flush(void)
 
         buf = jlog_check_performance(&rlen);
         if (buf) {
-            wlen = jsocket_send_(jcfg->ncfg.fd, buf, rlen, 0);
+            wlen = (int)jsocket_send_(jcfg->ncfg.fd, buf, rlen, 0);
             if (wlen < 0) {
                 jsocket_close(jcfg->ncfg.fd);
                 break;
@@ -888,7 +888,7 @@ static void jlog_flush(void)
         }
 
         while ((buf = jlog_buf_get(&rlen))) {
-            wlen = jsocket_send_(jcfg->ncfg.fd, buf, rlen < JLOG_SEND_SIZE ? rlen : JLOG_SEND_SIZE, 0);
+            wlen = (int)jsocket_send_(jcfg->ncfg.fd, buf, rlen < JLOG_SEND_SIZE ? rlen : JLOG_SEND_SIZE, 0);
             if (wlen < 0) {
                 jsocket_close(jcfg->ncfg.fd);
                 break;
@@ -980,11 +980,11 @@ int jlog_init(const jlog_cfg_t *cfg)
     if (fcfg->fcount < 0)
         fcfg->fcount = 0;
     if (cfg->file.file_path && cfg->file.file_path[0]) {
-        fcfg->dlen = strlen(cfg->file.file_path);
+        fcfg->dlen = (int)strlen(cfg->file.file_path);
         memcpy(fcfg->path, cfg->file.file_path, fcfg->dlen);
         fcfg->path[fcfg->dlen] = '\0';
     } else {
-        fcfg->dlen = strlen(JLOG_DEF_FPATH);
+        fcfg->dlen = (int)strlen(JLOG_DEF_FPATH);
         memcpy(fcfg->path, JLOG_DEF_FPATH, fcfg->dlen);
         fcfg->path[fcfg->dlen] = '\0';
     }
@@ -1004,11 +1004,11 @@ int jlog_init(const jlog_cfg_t *cfg)
     if (!ncfg->jaddr.port)
         ncfg->jaddr.port = JLOG_DEF_IPPORT;
     if (cfg->net.ip_addr && cfg->net.ip_addr[0]) {
-        len = strlen(cfg->net.ip_addr);
+        len = (int)strlen(cfg->net.ip_addr);
         memcpy(ncfg->jaddr.addr, cfg->net.ip_addr, len);
         ncfg->jaddr.addr[len] = '\0';
     } else {
-        len = strlen(JLOG_DEF_IPADDR);
+        len = (int)strlen(JLOG_DEF_IPADDR);
         memcpy(ncfg->jaddr.addr, JLOG_DEF_IPADDR, len);
         ncfg->jaddr.addr[len] = '\0';
     }
@@ -1129,7 +1129,7 @@ int jlog_cfg_set(const jlog_cfg_t *cfg)
             fcfg->fcount = 0;
     }
     if (cfg->file.file_path && cfg->file.file_path[0]) {
-        len = strlen(cfg->file.file_path);
+        len = (int)strlen(cfg->file.file_path);
         tmp = (char *)jheap_malloc(len + 2);
         if (tmp) {
             memcpy(tmp, cfg->file.file_path, len);
@@ -1159,7 +1159,7 @@ int jlog_cfg_set(const jlog_cfg_t *cfg)
         if (jcfg->wanted == JLOG_TO_NET)
             jcfg->changed = 1;
         ncfg->jaddr.domain = cfg->net.is_ipv6 ? AF_INET6 : AF_INET;
-        len = strlen(cfg->net.ip_addr);
+        len = (int)strlen(cfg->net.ip_addr);
         memcpy(ncfg->jaddr.addr, cfg->net.ip_addr, len);
         ncfg->jaddr.addr[len] = '\0';
     }

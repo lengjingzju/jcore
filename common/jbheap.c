@@ -58,7 +58,7 @@ static void *jbheap_align_alloc(jbheap_mgr_t *mgr, int size)
 
     if (mgr->cur->cur + dsize > mgr->cur->size) {
         if (mgr->flag) {
-            jslist_for_each_entry(pos, &mgr->head, list) {
+            jslist_for_each_entry(pos, &mgr->head, list, jbheap_node_t) {
                 if (pos->cur + dsize <= pos->size) {
                     mgr->cur = pos;
                     goto end;
@@ -99,7 +99,7 @@ void jbheap_uninit(jbheap_mgr_t *mgr)
 {
     jbheap_node_t *p = NULL, *pos = NULL, *n = NULL;
 
-    jslist_for_each_entry_safe(p, pos, n, &mgr->head, list) {
+    jslist_for_each_entry_safe(p, pos, n, &mgr->head, list, jbheap_node_t) {
         jslist_del(&pos->list, &p->list, &mgr->head);
         jheap_free(pos->ptr);
         jheap_free(pos);
@@ -113,7 +113,7 @@ int jbheap_tell(jbheap_mgr_t *mgr, int *used)
     jbheap_node_t *pos = NULL;
     int size = 0, cur = 0;
 
-    jslist_for_each_entry(pos, &mgr->head, list) {
+    jslist_for_each_entry(pos, &mgr->head, list, jbheap_node_t) {
         size += pos->size;
         cur += pos->cur;
     }
@@ -127,7 +127,7 @@ void jbheap_adjust(jbheap_mgr_t *mgr)
 {
     jbheap_node_t *pos = NULL;
 
-    jslist_for_each_entry(pos, &mgr->head, list) {
+    jslist_for_each_entry(pos, &mgr->head, list, jbheap_node_t) {
         if (pos->size != pos->cur) {
             pos->size = pos->cur;
             pos->ptr = (char *)jheap_realloc(pos->ptr, pos->size);

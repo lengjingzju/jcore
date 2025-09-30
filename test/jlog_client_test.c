@@ -5,11 +5,14 @@
 * https://github.com/lengjingzju/jcore     *
 *******************************************/
 #include <stdlib.h>
-#include <signal.h>
 #include "jlog.h"
 #include "jthread.h"
 #include "jini.h"
 #include "jheap.h"
+#include "jsocket.h"
+#ifndef _WIN32
+#include <signal.h>
+#endif
 
 #ifndef TEST_THREADS
 #define TEST_THREADS    1
@@ -41,8 +44,12 @@ int main(void)
     int i = 0, num = 0;
     int ret = 0;
 
+    jsocket_wsa_init();
+
+#ifndef _WIN32
     // 忽略 SIGPIPE 信号
     signal(SIGPIPE, SIG_IGN);
+#endif
 
 #if JHEAP_DEBUG
     jheap_init_debug(4);

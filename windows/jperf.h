@@ -11,12 +11,12 @@
 extern "C" {
 #endif
 
-#define JPERF_NET_LEN   16      // 根据net/core/dev.c文件中的定义，网络接口的名称长度被定义为16个字符
+#define JPERF_NET_LEN   16      // 网络接口名最大长度
 #define JPERF_NET_NUM   16      // 网络设备最大数量
 
 /**
  * @brief   CPU使用信息
- * @note    单位是jiffies，值是乘了CPU核心数的
+ * @note    单位是tick/jiffies，值是乘了CPU核心数的
  */
 typedef struct {
     uint64_t run_cost;          // 当前进程运行态耗时或系统的运行态耗时

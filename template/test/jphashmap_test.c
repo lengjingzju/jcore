@@ -57,29 +57,29 @@ static int jphashmap_node_cmp(Name *a, Name *b)
     return (int)(a->hash - b->hash);
 }
 
-static unsigned long _jphashmap_print_cb(Name *node, unsigned int mask)
+static uintptr_t _jphashmap_print_cb(Name *node, unsigned int mask)
 {
     printf("bucket: %3u, hash: %10u, name: %s\n",
         node->hash & mask, node->hash, node->name);
     return JHASHMAP_NEXT;
 }
 
-static unsigned long jphashmap_print_cb(Name *node)
+static uintptr_t jphashmap_print_cb(Name *node)
 {
     return _jphashmap_print_cb(node, HASHMAP_MASK);
 }
 
-static unsigned long jphashmap_add_print_cb(Name *node)
+static uintptr_t jphashmap_add_print_cb(Name *node)
 {
     return _jphashmap_print_cb(node, HASHMAP_ADD_MASK);
 }
 
-static unsigned long jphashmap_sub_print_cb(Name *node)
+static uintptr_t jphashmap_sub_print_cb(Name *node)
 {
     return _jphashmap_print_cb(node, HASHMAP_SUB_MASK);
 }
 
-static unsigned long jphashmap_free_cb(Name *node)
+static uintptr_t jphashmap_free_cb(Name *node)
 {
     static struct jphashmap_pool *pool = &s_hashmap_pool;
     pool->free(pool, node);

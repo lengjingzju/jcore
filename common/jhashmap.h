@@ -6,6 +6,7 @@
 *******************************************/
 #pragma once
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,7 +36,7 @@ extern "C" {
  * @return  返回节点的指针
  * @note    无
  */
-#define jhashmap_entry(ptr, type, member) ((type *)((char *)(ptr)-(unsigned long)(&((type *)0)->member)))
+#define jhashmap_entry(ptr, type, member) ((type *)((char *)(ptr)-(uintptr_t)(&((type *)0)->member)))
 
 /**
  * @brief   哈希表的节点结构
@@ -151,9 +152,9 @@ struct jhashmap *jhashmap_add(struct jhashmap_hd *hd, struct jhashmap *node);
 int jhashmap_del(struct jhashmap_hd *hd, struct jhashmap *node, struct jhashmap *prev);
 
 /**
- * @brief   哈希表遍历回调函数"unsigned long (*cb)(struct jhashmap *node)"的返回值
+ * @brief   哈希表遍历回调函数"uintptr_t (*cb)(struct jhashmap *node)"的返回值
 
- * @note    没有定义JHASHMAP_ADD，JHASHMAP_ADD返回新节点struct jhashmap的指针"(unsigned long)(ptr)"；
+ * @note    没有定义JHASHMAP_ADD，JHASHMAP_ADD返回新节点struct jhashmap的指针"(uintptr_t)(ptr)"；
  *          JHASHMAP_ADD时需要保证桶序号相同；此时外部也不需要调用${name}_add增加
  */
 #ifndef JHASHMAP_RET
@@ -170,7 +171,7 @@ int jhashmap_del(struct jhashmap_hd *hd, struct jhashmap *node, struct jhashmap 
  * @return  无返回值
  * @note    注意prev节点可能不是有效的节点，而是head
  */
-void jhashmap_loop(struct jhashmap_hd *hd, unsigned long (*cb)(struct jhashmap *node));
+void jhashmap_loop(struct jhashmap_hd *hd, uintptr_t (*cb)(struct jhashmap *node));
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{fc9ce86c-0af1-4896-beab-661692fcba96}</ProjectGuid>
+    <RootNamespace>jcore</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>NotSet</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>NotSet</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>NotSet</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>NotSet</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard_C>stdc11</LanguageStandard_C>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\common;$(ProjectDir)..\..\windows</AdditionalIncludeDirectories>
+      <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalOptions>/utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+    <PostBuildEvent>
+      <Command>cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jbitmap_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jbitmap_test.exe
+cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jheap_debug_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jheap_debug_test.exe
+cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jlog_client_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jlog_client_test.exe
+cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jpqueue_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jpqueue_test.exe
+cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jrbtree_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jrbtree_test.exe
+cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jsock_udp_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jsock_udp_test.exe
+cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jvector_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jvector_test.exe
+cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jhashmap_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jhashmap_test.exe
+cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jini_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jini_test.exe
+cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jlog_server_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jlog_server_test.exe
+cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jpthread_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jpthread_test.exe
+cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jsock_client_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jsock_client_test.exe
+cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jstring_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jstring_test.exe</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\common\jbheap.h" />
+    <ClInclude Include="..\..\common\jbitmap.h" />
+    <ClInclude Include="..\..\common\jfcache.h" />
+    <ClInclude Include="..\..\common\jhashmap.h" />
+    <ClInclude Include="..\..\common\jheap.h" />
+    <ClInclude Include="..\..\common\jini.h" />
+    <ClInclude Include="..\..\common\jlist.h" />
+    <ClInclude Include="..\..\common\jlog.h" />
+    <ClInclude Include="..\..\common\jlog_core.h" />
+    <ClInclude Include="..\..\common\joptimize.h" />
+    <ClInclude Include="..\..\common\jpheap.h" />
+    <ClInclude Include="..\..\common\jpqueue.h" />
+    <ClInclude Include="..\..\common\jpthread.h" />
+    <ClInclude Include="..\..\common\jrbtree.h" />
+    <ClInclude Include="..\..\common\jsocket.h" />
+    <ClInclude Include="..\..\common\jstring.h" />
+    <ClInclude Include="..\..\common\jvector.h" />
+    <ClInclude Include="..\..\windows\jfs.h" />
+    <ClInclude Include="..\..\windows\jperf.h" />
+    <ClInclude Include="..\..\windows\jthread.h" />
+    <ClInclude Include="..\..\windows\jtime.h" />
+    <ClInclude Include="..\..\windows\jtimer.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\common\jbheap.c" />
+    <ClCompile Include="..\..\common\jfcache.c" />
+    <ClCompile Include="..\..\common\jfs_c.c" />
+    <ClCompile Include="..\..\common\jhashmap.c" />
+    <ClCompile Include="..\..\common\jheap.c" />
+    <ClCompile Include="..\..\common\jini.c" />
+    <ClCompile Include="..\..\common\jlog.c" />
+    <ClCompile Include="..\..\common\jpheap.c" />
+    <ClCompile Include="..\..\common\jpthread.c" />
+    <ClCompile Include="..\..\common\jrbtree.c" />
+    <ClCompile Include="..\..\common\jsocket.c" />
+    <ClCompile Include="..\..\common\jstring.c" />
+    <ClCompile Include="..\..\common\jvector.c" />
+    <ClCompile Include="..\..\windows\jfs.c" />
+    <ClCompile Include="..\..\windows\jperf.c" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

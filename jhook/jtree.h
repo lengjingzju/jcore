@@ -5,6 +5,7 @@
 * https://github.com/lengjingzju/jcore     *
 *******************************************/
 #pragma once
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,7 +26,7 @@ extern "C" {
 struct jtree {
     struct jtree  *right_son;
     struct jtree  *left_son;
-    unsigned long parent_color;
+    uintptr_t      parent_color;
 };
 
 /**
@@ -48,7 +49,7 @@ struct jtree_root {
  * @return  返回节点的指针
  * @note    无
  */
-#define jtree_entry(ptr, type, member) ((type *)((char *)(ptr)-(unsigned long)(&((type *)0)->member)))
+#define jtree_entry(ptr, type, member) ((type *)((char *)(ptr)-(uintptr_t)(&((type *)0)->member)))
 
 /**
  * @brief   加入节点到红黑树

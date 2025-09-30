@@ -239,7 +239,7 @@ success:
     return 0;
 }
 
-void jhashmap_loop(struct jhashmap_hd *hd, unsigned long (*cb)(struct jhashmap *node))
+void jhashmap_loop(struct jhashmap_hd *hd, uintptr_t (*cb)(struct jhashmap *node))
 {
     struct jhashmap_bucket *cur, *next;
     struct jhashmap_bucket *hd_head = &hd->buckets[hd->bucket_num];
@@ -249,7 +249,7 @@ void jhashmap_loop(struct jhashmap_hd *hd, unsigned long (*cb)(struct jhashmap *
 
     for (cur = &hd->buckets[hd_head->next], next = &hd->buckets[cur->next]; \
             cur != hd_head; cur = next, next = &hd->buckets[next->next]) {
-        unsigned long ret = JHASHMAP_NEXT;
+        uintptr_t ret = JHASHMAP_NEXT;
         struct jhashmap *head = &cur->head, *p = head, *c = p->next, *n;
         struct jhashmap node;
 

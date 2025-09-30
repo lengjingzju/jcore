@@ -5,12 +5,21 @@
 * https://github.com/lengjingzju/jcore     *
 *******************************************/
 #pragma once
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <mstcpip.h>
+#include <windows.h>
+#include <BaseTsd.h>     // for SSIZE_T
+#else
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,7 +30,7 @@ extern "C" {
 #define JSOCKET_IPV4_LEN                16
 #define JSOCKET_IPV6_LEN                46
 #define JSOCKET_IP_LEN                  46
-#define AF_INETAUTO                      0
+#define AF_INETAUTO                     0
 
 /**
  * @brief   socket可读结构体
@@ -48,17 +57,32 @@ typedef struct {
 } jsocket_saddr_t;
 
 /**
- * @brief   socket描述符类型
+ * @brief   socket描述符操作
  */
+#ifdef _WIN32
+#ifndef ssize_t
+typedef SSIZE_T ssize_t;
+#endif
+typedef SOCKET jsocket_fd_t;
+typedef int jsocket_len_t;
+#define JSOCKET_INVALID_FD              INVALID_SOCKET
+#define jsocket_close_fd(fd)            closesocket(fd)
+#else
 typedef int jsocket_fd_t;
 typedef socklen_t jsocket_len_t;
 #define JSOCKET_INVALID_FD              (-1)
-#define jsocket_fd_valid(fd)            ((fd) >= 0)
+#define jsocket_close_fd(fd)            close(fd)
+#endif
+
+/**
+ * @brief   判定socket描述符是否有效
+ */
+#define jsocket_fd_valid(fd)            ((fd) != JSOCKET_INVALID_FD)
 
 /**
  * @brief   关闭socket描述符
  */
-#define jsocket_close(fd)               do { if ((fd) >= 0) close(fd); (fd) = -1; } while (0)
+#define jsocket_close(fd)               do { if (jsocket_fd_valid(fd)) jsocket_close_fd(fd); (fd) = JSOCKET_INVALID_FD; } while (0)
 
 /**
  * @brief   初始化socket库

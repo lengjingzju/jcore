@@ -219,7 +219,7 @@ ssize_t jfcache_seek(void* hd, ssize_t offset, int whence)
         jfc->logic_off = roffset;
     }
     if (jfc->flag == 1) {
-        jfc->phy_off = lseek(jfc->fd, jfc->logic_off, JFS_SEEK_SET);
+        jfc->phy_off = jfs_lseek(jfc->fd, jfc->logic_off, JFS_SEEK_SET);
     }
 
     return jfc->logic_off;

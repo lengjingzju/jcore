@@ -44,6 +44,7 @@ cat <<EOF> ${name}.h
 *******************************************/
 #pragma once
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -95,7 +96,7 @@ ${T} {
  * @return  返回数据节点的指针
  * @note    无
  */
-#define ${name}_data_entry(ptr)         ((${T} *)((char *)(ptr)-(unsigned long)(&((${T} *)0)->data)))
+#define ${name}_data_entry(ptr)         ((${T} *)((char *)(ptr)-(uintptr_t)(&((${T} *)0)->data)))
 
 /**
  * @brief   内存池管理结构
@@ -168,7 +169,7 @@ struct ${name}_root {
  * @return  返回链表节点的指针
  * @note    无
  */
-#define ${NAME}_FROM_DATA(ptr)          ((${name}_node_t *)((char *)(ptr)-(unsigned long)(&((${T} *)0)->data)))
+#define ${NAME}_FROM_DATA(ptr)          ((${name}_node_t *)((char *)(ptr)-(uintptr_t)(&((${T} *)0)->data)))
 
 /**
  * @brief   初始化双向链表管理结构

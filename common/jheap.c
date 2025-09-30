@@ -146,11 +146,12 @@ static int node_node_cmp(struct jrbtree *a, struct jrbtree *b)
     return 0;
 }
 
-static jthread_ret_t jheap_worker(void *arg __attribute__((unused)))
+static jthread_ret_t jheap_worker(void *arg)
 {
     jheap_mgr_t *mgr = &s_jheap_mgr;
     int cnt = 0;
 
+    (void)arg; // prevent warning
     while (mgr->inited) {
         if (mgr->check_flag) {
             if (++cnt >= mgr->check_count) {

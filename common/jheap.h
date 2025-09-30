@@ -21,8 +21,24 @@ extern "C" {
 #define jheap_malloc(size)              malloc(size)
 #define jheap_calloc(nmemb, size)       calloc(nmemb, size)
 #define jheap_realloc(ptr, size)        realloc(ptr, size)
+#ifdef _WIN32
+#define jheap_strdup(s)                 _strdup(s)
+static inline char *jheap_strndup(const char *s, size_t n)
+{
+    size_t len = strlen(s);
+    size_t size = (n < len ? n : len) + 1;
+    char *ptr = (char *)malloc(size);
+
+    if (!ptr)
+        return NULL;
+    memcpy(ptr, s, size - 1);
+    ptr[size - 1] = '\0';
+    return ptr;
+}
+#else
 #define jheap_strdup(s)                 strdup(s)
 #define jheap_strndup(s, n)             strndup(s, n)
+#endif
 #else
 #define jheap_free(ptr)                 jheap_free_debug(ptr, __func__, __LINE__)
 #define jheap_malloc(size)              jheap_malloc_debug(size, __func__, __LINE__)

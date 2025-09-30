@@ -119,15 +119,15 @@ JCore 封装了不同操作系统的核心接口，屏蔽了系统调用的差�
 * **文件模块**：封装不同系统的文件和目录接口
     * 文件：`$OSDIR/jfs.h`, `$OSDIR/jfs.c`, `common/jfs_c.c`
 
-* **网络模块**：封装不同系统的 TCP 和 UDP 接口，提供易于使用的网络库
-    * 文件：`$OSDIR/jsocket.h`, `$OSDIR/jsocket.c`
-
 * **资源模块**：获取系统资源占用情况，包括进程的 CPU 和内存占用、系统的 CPU 和内存占用、网络收发情况等
     * 文件：`$OSDIR/jperf.h`, `$OSDIR/jperf.c`
 
-注：`$OSDIR` 表示不同系统的封装接口目录，例如：`posix`、`windows`（目前仅支持 Linux）。
+注：`$OSDIR` 表示不同系统的封装接口目录，例如：`posix`、`windows`（目前仅支持 Linux，Windows 可以编译通过但没有测试）。
 
 ### 基础功能
+
+* **网络模块**：封装不同系统的 TCP 和 UDP 接口，提供易于使用的网络库
+    * 文件：`common/jsocket.h`, `common/jsocket.c`
 
 * **文件缓冲模块**：提供文件读写缓冲功能，避免大量小块文件读写引起的性能下降
     * 文件：`common/jfcache.h`, `common/jfcache.c`

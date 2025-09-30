@@ -59,7 +59,7 @@ static int jhashmap_node_cmp(struct jhashmap *a, struct jhashmap *b)
 }
 
 
-static unsigned long _jhashmap_print_cb(struct jhashmap *node, unsigned int mask)
+static uintptr_t _jhashmap_print_cb(struct jhashmap *node, unsigned int mask)
 {
     Name *tnode = jhashmap_entry(node, Name, list);
     printf("bucket: %3u, hash: %10u, name: %s\n",
@@ -67,22 +67,22 @@ static unsigned long _jhashmap_print_cb(struct jhashmap *node, unsigned int mask
     return JHASHMAP_NEXT;
 }
 
-static unsigned long jhashmap_print_cb(struct jhashmap *node)
+static uintptr_t jhashmap_print_cb(struct jhashmap *node)
 {
     return _jhashmap_print_cb(node, HASHMAP_MASK);
 }
 
-static unsigned long jhashmap_add_print_cb(struct jhashmap *node)
+static uintptr_t jhashmap_add_print_cb(struct jhashmap *node)
 {
     return _jhashmap_print_cb(node, HASHMAP_ADD_MASK);
 }
 
-static unsigned long jhashmap_sub_print_cb(struct jhashmap *node)
+static uintptr_t jhashmap_sub_print_cb(struct jhashmap *node)
 {
     return _jhashmap_print_cb(node, HASHMAP_SUB_MASK);
 }
 
-static unsigned long jhashmap_free_cb(struct jhashmap *node)
+static uintptr_t jhashmap_free_cb(struct jhashmap *node)
 {
     Name *tnode = jhashmap_entry(node, Name, list);
     jpheap_free(&s_pheap, tnode);

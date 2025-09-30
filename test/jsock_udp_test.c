@@ -7,8 +7,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "jtime.h"
 #include "jsocket.h"
+#ifndef _WIN32
 #include <sys/signal.h>
+#endif
 #define BUF_SIZE 1000
 
 static char buf[BUF_SIZE] = {0};
@@ -17,7 +20,11 @@ int main(void)
 {
     jsocket_jaddr_t addr = {0}, addr2 = {0};
 
+    jsocket_wsa_init();
+
+#ifndef _WIN32
     signal(SIGPIPE, SIG_IGN);
+#endif
 
     addr2.domain = AF_INET;
     addr.msec = 10000;
@@ -47,7 +54,7 @@ int main(void)
     while (1) {
         ssize_t size = jsocket_sendto(sfd, buf, BUF_SIZE, &saddr);
         printf("%d %lld\n", i++, (long long)size);
-        usleep(10000);
+        jtime_msleep(10);
     }
 
     jsocket_close(sfd);
