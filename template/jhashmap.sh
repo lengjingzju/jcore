@@ -44,6 +44,7 @@ cat <<EOF> ${name}.h
 *******************************************/
 #pragma once
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -240,8 +241,8 @@ ${ST} *${name}_add(struct ${name}_root *root, ${ST} *node);
 int ${name}_del(struct ${name}_root *root, ${ST} *node, ${ST} *prev);
 
 /**
- * @brief   哈希表遍历回调函数"unsigned long (*cb)(struct jhashmap *node)"的返回值
- * @note    没有定义JHASHMAP_ADD，JHASHMAP_ADD返回新节点数据成员的指针"(unsigned long)(ptr)"；
+ * @brief   哈希表遍历回调函数"uintptr_t (*cb)(struct jhashmap *node)"的返回值
+ * @note    没有定义JHASHMAP_ADD，JHASHMAP_ADD返回新节点数据成员的指针"(uintptr_t)(ptr)"；
  *          JHASHMAP_ADD时需要保证桶序号相同；此时外部也不需要调用${name}_add增加
  */
 #ifndef JHASHMAP_RET
@@ -258,7 +259,7 @@ int ${name}_del(struct ${name}_root *root, ${ST} *node, ${ST} *prev);
  * @return  无返回值
  * @note    注意prev节点可能不是有效的节点，而是head
  */
-void ${name}_loop(struct ${name}_root *root, unsigned long (*cb)(${ST} *node));
+void ${name}_loop(struct ${name}_root *root, uintptr_t (*cb)(${ST} *node));
 
 #ifdef __cplusplus
 }
@@ -289,9 +290,9 @@ cat <<EOF> ${name}.c
 #define JHASHMAP_INVALID                -1
 
 #define ${name}_node_entry(ptr)         ((${T} *)(ptr))
-#define ${name}_data_entry(ptr)         ((${T} *)((char *)(ptr)-(unsigned long)(&((${T} *)0)->data)))
+#define ${name}_data_entry(ptr)         ((${T} *)((char *)(ptr)-(uintptr_t)(&((${T} *)0)->data)))
 #define ${NAME}_FROM_INDEX(root, index) (&(root)->pool->begin[index].node)
-#define ${NAME}_FROM_DATA(ptr)          ((struct jphashmap_node *)((char *)(ptr)-(unsigned long)(&((${T} *)0)->data)))
+#define ${NAME}_FROM_DATA(ptr)          ((struct jphashmap_node *)((char *)(ptr)-(uintptr_t)(&((${T} *)0)->data)))
 
 static inline ${ST} *_${name}_alloc00(struct ${name}_pool *pool)
 {
@@ -836,7 +837,7 @@ success:
     return 0;
 }
 
-void ${name}_loop(struct ${name}_root *root, unsigned long (*cb)(${ST} *node))
+void ${name}_loop(struct ${name}_root *root, uintptr_t (*cb)(${ST} *node))
 {
     ${name}_bucket_t *cur, *next;
     ${name}_bucket_t *hd_head = &root->buckets[root->bucket_num];
@@ -846,7 +847,7 @@ void ${name}_loop(struct ${name}_root *root, unsigned long (*cb)(${ST} *node))
 
     for (cur = &root->buckets[hd_head->next], next = &root->buckets[cur->next];\\
             cur != hd_head; cur = next, next = &root->buckets[next->next]) {
-        unsigned long ret = JHASHMAP_NEXT;
+        uintptr_t ret = JHASHMAP_NEXT;
         struct jphashmap_node bak;
         struct jphashmap_node *head = &cur->head;
         int c = cur->head.next, n;

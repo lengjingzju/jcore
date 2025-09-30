@@ -273,9 +273,9 @@ cat <<EOF> ${name}.c
 #define JRBTREE_BLACK                   1
 
 #define ${name}_node_entry(ptr)         ((${T} *)(ptr))
-#define ${name}_data_entry(ptr)         ((${T} *)((char *)(ptr)-(unsigned long)(&((${T} *)0)->data)))
+#define ${name}_data_entry(ptr)         ((${T} *)((char *)(ptr)-(uintptr_t)(&((${T} *)0)->data)))
 #define ${NAME}_FROM_INDEX(root, index) (&(root)->pool->begin[index].node)
-#define ${NAME}_FROM_DATA(ptr)          ((${name}_node_t *)((char *)(ptr)-(unsigned long)(&((${T} *)0)->data)))
+#define ${NAME}_FROM_DATA(ptr)          ((${name}_node_t *)((char *)(ptr)-(uintptr_t)(&((${T} *)0)->data)))
 
 static inline ${ST} *_${name}_alloc00(struct ${name}_pool *pool)
 {

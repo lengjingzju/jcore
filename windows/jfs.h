@@ -6,18 +6,27 @@
 *******************************************/
 #pragma once
 #include <stdio.h>
-#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <io.h>
 #include <fcntl.h>
+#include <direct.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/ioctl.h>
+#include <time.h>
+#include <windows.h>
+#include <BaseTsd.h>     // for SSIZE_T
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define JFS_SP                          '/'
-#define JFS_RSP                         '\\'
+#ifndef ssize_t
+typedef SSIZE_T ssize_t;
+#endif
+
+#define JFS_SP                          '\\'
+#define JFS_RSP                         '/'
 
 /**
  * @brief   检查并修改适应当前系统的路径分隔符
@@ -37,12 +46,12 @@ static inline void jfs_sp_adapted(char *buf)
 /**
  * @brief   写入到标准输出
  */
-#define JFS_WROUT(buf, count)           write(STDOUT_FILENO, buf, count);
+#define JFS_WROUT(buf, count)           _write(_fileno(stdout), (buf), (unsigned int)(count))
 
 /**
  * @brief   写入到标准错误
  */
-#define JFS_WRERR(buf, count)           write(STDERR_FILENO, buf, count);
+#define JFS_WRERR(buf, count)           _write(_fileno(stderr), (buf), (unsigned int)(count))
 
 /**
  * @brief   修改偏移的相对位置
@@ -58,69 +67,70 @@ typedef int jfs_fd_t;
 /**
  * @brief   关闭文件
  */
-#define jfs_close(fd)                   do { if ((fd) >= 0) close(fd); (fd) = -1; } while (0)
+#define jfs_close(fd)                   do { if ((fd) >= 0) _close(fd); (fd) = -1; } while (0)
 
 /**
  * @brief   打开文件
  * @param   fname [IN] 要打开的文件名
  * @param   mode [IN] 打开的模式，只有"r" "w" "a" "r+" "w+" "a+"六种类型
  * @return  成功返回文件描述符; 失败返回JFS_INVALID_FD
- * @note    无
+ * @note    使用二进制模式，权限0666（受umask影响）
  */
 static inline jfs_fd_t jfs_open(const char *fname, const char *mode)
 {
-    int oflag = 0;
-    mode_t omode = 0;
+    int oflag = _O_BINARY;
+    int pmode = _S_IREAD | _S_IWRITE;
 
     switch (mode[0]) {
     case 'r':
-        oflag = mode[1] == '+' ? O_RDWR : O_RDONLY;
+        oflag |= (mode[1] == '+') ? _O_RDWR : _O_RDONLY;
         break;
     case 'w':
-        oflag = (mode[1] == '+' ? O_RDWR : O_WRONLY) | O_CREAT | O_TRUNC;
-        omode = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
+        oflag |= (mode[1] == '+') ? _O_RDWR : _O_WRONLY;
+        oflag |= _O_CREAT | _O_TRUNC;
         break;
     case 'a':
-        oflag = (mode[1] == '+' ? O_RDWR : O_WRONLY) | O_CREAT | O_APPEND;
-        omode = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
+        oflag |= (mode[1] == '+') ? _O_RDWR : _O_WRONLY;
+        oflag |= _O_CREAT | _O_APPEND;
         break;
     default:
-        oflag = O_RDONLY;
+        oflag |= _O_RDONLY;
         break;
     }
 
-    return omode ? open(fname, oflag, omode) : open(fname, oflag);
+    int fd = _open(fname, oflag, pmode);
+    return (fd >= 0) ? fd : JFS_INVALID_FD;
 }
 
 /**
  * @brief   读文件
  */
-#define jfs_read(fd, buffer, count)     read(fd, buffer, count)
+#define jfs_read(fd, buffer, count)     _read((fd), (void *)(buffer), (unsigned int)(count))
 
 /**
  * @brief   写文件
  */
-#define jfs_write(fd, buffer, count)    write(fd, buffer, count)
+#define jfs_write(fd, buffer, count)    _write((fd), (const void *)(buffer), (unsigned int)(count))
 
 /**
  * @brief   修改文件偏移
  */
-#define jfs_lseek(fd, offset, whence)   lseek(fd, offset, whence)
+#define jfs_lseek(fd, offset, whence)   _lseek((fd), (long)(offset), (whence))
 
 /**
  * @brief   同步文件到磁盘
  */
-#define jfs_fsync(fd)                   fsync(fd)
+#define jfs_fsync(fd)                   _commit((fd))
 
 /**
  * @brief   截断文件
  */
-#define jfs_ftruncate(fd, length)       fftruncate(fd, length)
+#define jfs_ftruncate(fd, length)       _chsize_s((fd), (long long)(length))
 
 /**
  * @brief   删除文件
  */
-#define jfs_rmfile(fname)               unlink(fname)
+#define jfs_rmfile(fname)               remove((fname))
 
 /**
  * @brief   读取文件所有内容到buffer
@@ -154,45 +164,34 @@ int jfs_writeall(const char *fname, const char *buf, size_t count);
 #define JFS_NOTEXISTED                  0   // 文件不存在
 #define JFS_ISFILE                      1   // 是普通文件
 #define JFS_ISDIR                       2   // 是目录
-#define JFS_ISLINK                      4   // 是符号链接
+#define JFS_ISLINK                      4   // 是符号链接（含junction等reparse）
 #define JFS_ISOTHER                     8   // 其它类型
 
 /**
  * @brief   获取文件类型
  * @param   path [IN] 要检查的文件名
  * @return  返回文件类型
- * @note    无
+ * @note    Windows下使用GetFileAttributesEx，reparse点视为链接
  */
 static inline unsigned int jfs_gettype(const char *path)
 {
-    struct stat st;
-    unsigned int type = JFS_NOTEXISTED;
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (!GetFileAttributesExA(path, GetFileExInfoStandard, &fad))
+        return JFS_NOTEXISTED;
 
-    if (lstat(path, &st) < 0)
-        return type;
-
-    switch (st.st_mode & S_IFMT) {
-    case S_IFREG:
-        type = JFS_ISFILE;
-        break;
-    case S_IFDIR:
-        type = JFS_ISDIR;
-        break;
-    case S_IFLNK:
-        type = JFS_ISLINK;
-        break;
-    default:
-        type = JFS_ISOTHER;
-        break;
+    const DWORD attr = fad.dwFileAttributes;
+    if (attr & FILE_ATTRIBUTE_REPARSE_POINT) {
+        if (attr & FILE_ATTRIBUTE_DIRECTORY) return JFS_ISLINK; // dir symlink/junction
+        return JFS_ISLINK; // file symlink
     }
-
-    return type;
+    if (attr & FILE_ATTRIBUTE_DIRECTORY) return JFS_ISDIR;
+    return JFS_ISFILE;
 }
 
 /**
  * @brief   判断文件是否存在
  */
-#define jfs_existed(path)               (access(path, F_OK) == 0)
+#define jfs_existed(path)               (_access((path), 0) == 0)
 
 /**
  * @brief   重命名文件
@@ -206,7 +205,7 @@ typedef struct {
     char *name;         // 文件或文件夹名
     unsigned int len;   // 文件名长度
     unsigned int type;  // 文件类型
-    unsigned long long size;// 文件大小
+    off_t size;         // 文件大小
     time_t mtime;       // 文件修改时间
 } jfs_dirent_t;
 

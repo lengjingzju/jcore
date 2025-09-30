@@ -6,6 +6,7 @@
 *******************************************/
 #pragma once
 #include <stddef.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,20 +36,21 @@ struct jdlist_head {
  * @return  返回节点的指针
  * @note    无
  */
-#define jdlist_entry(ptr, type, member) ((type *)((char *)(ptr)-(unsigned long)(&((type *)0)->member)))
+#define jdlist_entry(ptr, type, member) ((type *)((char *)(ptr)-(uintptr_t)(&((type *)0)->member)))
 
 /**
  * @brief   遍历双向循环链表的循环头
  * @param   pos [OUT] 被赋值当前节点的指针
  * @param   head [IN] 链表头
  * @param   member [IN] 节点的链表成员名
+ * @param   type [IN] 节点结构体的类型名
  * @return  不是函数，无返回概念
  * @note    一般是操作pos，不能在循环体内部进行添加删除节点操作
  */
-#define jdlist_for_each_entry(pos, head, member)                \
-for (pos = jdlist_entry((head)->next, typeof(*pos), member);    \
+#define jdlist_for_each_entry(pos, head, member, type)          \
+for (pos = jdlist_entry((head)->next, type, member);            \
     &pos->member != (head);                                     \
-    pos = jdlist_entry(pos->member.next, typeof(*pos), member))
+    pos = jdlist_entry(pos->member.next, type, member))
 
 /**
  * @brief   安全遍历双向循环链表的循环头
@@ -56,14 +58,15 @@ for (pos = jdlist_entry((head)->next, typeof(*pos), member);    \
  * @param   n [OUT] 给他赋值后一节点的指针
  * @param   head [IN] 链表头
  * @param   member [IN] 节点的链表成员名
+ * @param   type [IN] 节点结构体的类型名
  * @return  不是函数，无返回概念
  * @note    一般是操作pos，可以在循环体内部进行添加删除节点操作
  */
-#define jdlist_for_each_entry_safe(pos, n, head, member)        \
-for (pos = jdlist_entry((head)->next, typeof(*pos), member),    \
-    n = jdlist_entry(pos->member.next, typeof(*pos), member);   \
+#define jdlist_for_each_entry_safe(pos, n, head, member, type)  \
+for (pos = jdlist_entry((head)->next, type, member),            \
+    n = jdlist_entry(pos->member.next, type, member);           \
     &pos->member != (head);                                     \
-    pos = n, n = jdlist_entry(n->member.next, typeof(*n), member))
+    pos = n, n = jdlist_entry(n->member.next, type, member))
 
 /**
  * @brief   初始化双向循环链表头
@@ -157,20 +160,21 @@ struct jslist_head {
  * @return  返回节点的指针
  * @note    无
  */
-#define jslist_entry(ptr, type, member) ((type *)((char *)(ptr)-(unsigned long)(&((type *)0)->member)))
+#define jslist_entry(ptr, type, member) ((type *)((char *)(ptr)-(uintptr_t)(&((type *)0)->member)))
 
 /**
  * @brief   遍历单向循环链表的循环头
  * @param   pos [OUT] 被赋值当前节点的指针
  * @param   head [IN] 链表头
  * @param   member [IN] 节点的链表成员名
+ * @param   type [IN] 节点结构体的类型名
  * @return  不是函数，无返回概念
  * @note    一般是操作pos，不能在循环体内部进行添加删除节点操作
  */
-#define jslist_for_each_entry(pos, head, member)                \
-for (pos = jslist_entry((head)->next, typeof(*pos), member);    \
+#define jslist_for_each_entry(pos, head, member, type)          \
+for (pos = jslist_entry((head)->next, type, member);            \
     &pos->member != (struct jslist *)(head);                    \
-    pos = jslist_entry(pos->member.next, typeof(*pos), member))
+    pos = jslist_entry(pos->member.next, type, member))
 
 /**
  * @brief   安全遍历单向循环链表的循环头
@@ -179,16 +183,17 @@ for (pos = jslist_entry((head)->next, typeof(*pos), member);    \
  * @param   n [OUT] 给他赋值后一节点的指针
  * @param   head [IN] 链表头
  * @param   member [IN] 节点的链表成员名
+ * @param   type [IN] 节点结构体的类型名
  * @return  不是函数，无返回概念
  * @note    一般是操作pos，可以在循环体内部进行添加删除节点操作
  *          注意修改时注意重新赋值，例如删除pos节点需要再循环体内部设置"pos = p;"
  */
-#define jslist_for_each_entry_safe(p, pos, n, head, member)     \
-for (p = jslist_entry((head), typeof(*pos), member),            \
-    pos = jslist_entry((head)->next, typeof(*pos), member),     \
-    n = jslist_entry(pos->member.next, typeof(*pos), member);   \
+#define jslist_for_each_entry_safe(p, pos, n, head, member, type) \
+for (p = jslist_entry((head), type, member),                    \
+    pos = jslist_entry((head)->next, type, member),             \
+    n = jslist_entry(pos->member.next, type, member);           \
     &pos->member != (struct jslist *)(head);                    \
-    p = pos, pos = n, n = jslist_entry(n->member.next, typeof(*n), member))
+    p = pos, pos = n, n = jslist_entry(n->member.next, type, member))
 
 /**
  * @brief   初始化单向循环链表头

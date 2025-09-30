@@ -62,7 +62,7 @@ static inline void *jpheap_alloc(jpheap_mgr_t *mgr)
  */
 static inline void jpheap_free(jpheap_mgr_t *mgr, void *ptr)
 {
-    return mgr->free(mgr, ptr);
+    mgr->free(mgr, ptr);
 }
 
 #ifdef __cplusplus

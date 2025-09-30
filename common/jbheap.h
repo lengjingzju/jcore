@@ -5,12 +5,12 @@
 * https://github.com/lengjingzju/jcore     *
 *******************************************/
 #pragma once
+#include <string.h>
+#include "jlist.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include <string.h>
-#include "jlist.h"
 
 typedef struct jbheap_node {
     struct jslist list;     // 单项链表节点

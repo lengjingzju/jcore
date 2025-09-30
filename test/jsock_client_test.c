@@ -19,6 +19,8 @@ int main(void)
     int len = 0, i = 1 + (1<<20);
     char buf[TEST_BUFSIZE] = {0};
 
+    jsocket_wsa_init();
+
     jaddr.domain = AF_INET;
     len = strlen(JSOCKET_LOCALHOST);
     memcpy(jaddr.addr, JSOCKET_LOCALHOST, len);

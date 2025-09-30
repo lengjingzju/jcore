@@ -54,19 +54,19 @@ static inline void *_jpheap_alloc12(jpheap_mgr_t *mgr)
 static inline void _jpheap_free00(jpheap_mgr_t *mgr, void *ptr)
 {
     if (!ptr) return;
-    ((uint8_t *)mgr->idx)[--mgr->sel] = ((char *)ptr - mgr->begin) / mgr->size;
+    ((uint8_t *)mgr->idx)[--mgr->sel] = (uint8_t)(((char *)ptr - mgr->begin) / mgr->size);
 }
 
 static inline void _jpheap_free01(jpheap_mgr_t *mgr, void *ptr)
 {
     if (!ptr) return;
-    ((uint16_t *)mgr->idx)[--mgr->sel] = ((char *)ptr - mgr->begin) / mgr->size;
+    ((uint16_t *)mgr->idx)[--mgr->sel] = (uint16_t)(((char *)ptr - mgr->begin) / mgr->size);
 }
 
 static inline void _jpheap_free02(jpheap_mgr_t *mgr, void *ptr)
 {
     if (!ptr) return;
-    ((uint32_t *)mgr->idx)[--mgr->sel] = ((char *)ptr - mgr->begin) / mgr->size;
+    ((uint32_t *)mgr->idx)[--mgr->sel] = (uint32_t)(((char *)ptr - mgr->begin) / mgr->size);
 }
 
 static inline void _jpheap_free10(jpheap_mgr_t *mgr, void *ptr)
@@ -75,7 +75,7 @@ static inline void _jpheap_free10(jpheap_mgr_t *mgr, void *ptr)
     if ((char *)ptr < mgr->begin || (char *)ptr >= mgr->end)
         jheap_free(ptr);
     else
-        ((uint8_t *)mgr->idx)[--mgr->sel] = ((char *)ptr - mgr->begin) / mgr->size;
+        ((uint8_t *)mgr->idx)[--mgr->sel] = (uint8_t)(((char *)ptr - mgr->begin) / mgr->size);
 }
 
 static inline void _jpheap_free11(jpheap_mgr_t *mgr, void *ptr)
@@ -84,7 +84,7 @@ static inline void _jpheap_free11(jpheap_mgr_t *mgr, void *ptr)
     if ((char *)ptr < mgr->begin || (char *)ptr >= mgr->end)
         jheap_free(ptr);
     else
-        ((uint16_t *)mgr->idx)[--mgr->sel] = ((char *)ptr - mgr->begin) / mgr->size;
+        ((uint16_t *)mgr->idx)[--mgr->sel] = (uint16_t)(((char *)ptr - mgr->begin) / mgr->size);
 }
 
 static inline void _jpheap_free12(jpheap_mgr_t *mgr, void *ptr)
@@ -93,7 +93,7 @@ static inline void _jpheap_free12(jpheap_mgr_t *mgr, void *ptr)
     if ((char *)ptr < mgr->begin || (char *)ptr >= mgr->end)
         jheap_free(ptr);
     else
-        ((uint32_t *)mgr->idx)[--mgr->sel] = ((char *)ptr - mgr->begin) / mgr->size;
+        ((uint32_t *)mgr->idx)[--mgr->sel] = (uint32_t)(((char *)ptr - mgr->begin) / mgr->size);
 }
 
 int jpheap_init(jpheap_mgr_t *mgr)

@@ -350,8 +350,8 @@ void jhook_stop(void)
     mgr->enabled = 0;
     mgr->total_size = 0;
     mgr->peak_size = 0;
-    jslist_for_each_entry_safe(sp, spos, sn, &mgr->head, list) {
-        jslist_for_each_entry_safe(p, pos, n, &spos->head, list) {
+    jslist_for_each_entry_safe(sp, spos, sn, &mgr->head, list, jhook_node_t) {
+        jslist_for_each_entry_safe(p, pos, n, &spos->head, list, jhook_data_t) {
             jslist_del(&pos->list, &p->list, &spos->head);
             __libc_free(pos);
             pos = p;
@@ -377,8 +377,8 @@ void jhook_check_bound(void)
     if (!mgr->tail_num)
         goto end;
 
-    jslist_for_each_entry(node, &mgr->head, list) {
-        jslist_for_each_entry(data, &node->head, list) {
+    jslist_for_each_entry(node, &mgr->head, list, jhook_node_t) {
+        jslist_for_each_entry(data, &node->head, list, jhook_data_t) {
             if (memcmp(mgr->checks, (char *)data->ptr + node->size, mgr->tail_num) != 0) {
                 enabled = mgr->enabled;
                 mgr->enabled = 0;
@@ -440,14 +440,14 @@ void jhook_check_leak(int choice)
         return;
 
     pthread_mutex_lock(&mgr->mtx);
-    jslist_for_each_entry(node, &mgr->head, list) {
+    jslist_for_each_entry(node, &mgr->head, list, jhook_node_t) {
         ++num;
     }
 
     if (num) {
         nodes = (jhook_node_t *)__libc_malloc(num * sizeof(jhook_node_t));
         if (nodes) {
-            jslist_for_each_entry(node, &mgr->head, list) {
+            jslist_for_each_entry(node, &mgr->head, list, jhook_node_t) {
                 memcpy(nodes + cnt, node, sizeof(jhook_node_t));
                 ++cnt;
                 node->changed = 0;
@@ -589,8 +589,8 @@ void jhook_addptr(void *ptr, size_t size, void *addr)
         memset((char *)ptr + size, CHECK_BYTE, mgr->tail_num);
 
     if (mgr->dup_flag) {
-        jslist_for_each_entry(node, &mgr->head, list) {
-            jslist_for_each_entry_safe(p, pos, n, &node->head, list) {
+        jslist_for_each_entry(node, &mgr->head, list, jhook_node_t) {
+            jslist_for_each_entry_safe(p, pos, n, &node->head, list, jhook_data_t) {
                 if (pos->ptr == ptr) {
                     jslist_del(&pos->list, &p->list, &node->head);
                     __libc_free(pos);
@@ -610,7 +610,7 @@ next:
     }
     pos->ptr = ptr;
 
-    jslist_for_each_entry(node, &mgr->head, list) {
+    jslist_for_each_entry(node, &mgr->head, list, jhook_node_t) {
         if (node->size == size && memcmp(&node->addrs[0], &addrs[JHOOK_DJUMP], csize) == 0) {
             ++node->alloc;
             node->changed = 1;
@@ -657,8 +657,8 @@ void jhook_delptr(void *ptr, bool del_node)
         return;
 
     pthread_mutex_lock(&mgr->mtx);
-    jslist_for_each_entry_safe(pnode, node, nnode, &mgr->head, list) {
-        jslist_for_each_entry_safe(p, pos, n, &node->head, list) {
+    jslist_for_each_entry_safe(pnode, node, nnode, &mgr->head, list, jhook_node_t) {
+        jslist_for_each_entry_safe(p, pos, n, &node->head, list, jhook_data_t) {
             if (pos->ptr == ptr) {
                 jslist_del(&pos->list, &p->list, &node->head);
                 __libc_free(pos);

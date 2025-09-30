@@ -10,15 +10,15 @@
 #define JRBTREE_RED             0
 #define JRBTREE_BLACK           1
 
-#define rb_parent(r)            ((struct jrbtree *)((r)->parent_color & ~3UL))
-#define rb_color(r)             ((r)->parent_color & 1UL)
+#define rb_parent(r)            ((struct jrbtree *)((r)->parent_color & ~((uintptr_t)3)))
+#define rb_color(r)             ((r)->parent_color & (uintptr_t)1)
 #define rb_is_red(r)            (!rb_color(r))
 #define rb_is_black(r)          rb_color(r)
 
-#define rb_set_parent(r, p)     do { (r)->parent_color = ((r)->parent_color &  1UL) | (unsigned long)(p); } while (0)
-#define rb_set_color(r, c)      do { (r)->parent_color = ((r)->parent_color & ~1UL) | c; } while (0)
-#define rb_set_red(r)           do { (r)->parent_color &= ~1UL; } while (0)
-#define rb_set_black(r)         do { (r)->parent_color |=  1UL; } while (0)
+#define rb_set_parent(r, p)     do { (r)->parent_color = ((r)->parent_color &  (uintptr_t)1) | (uintptr_t)(p); } while (0)
+#define rb_set_color(r, c)      do { (r)->parent_color = ((r)->parent_color & ~((uintptr_t)1)) | c; } while (0)
+#define rb_set_red(r)           do { (r)->parent_color &= ~((uintptr_t)1); } while (0)
+#define rb_set_black(r)         do { (r)->parent_color |=  (uintptr_t)1; } while (0)
 
 static void jrbtree_rotate_left(struct jrbtree_root *root, struct jrbtree *node)
 {
@@ -204,7 +204,7 @@ int jrbtree_add(struct jrbtree_root *root, struct jrbtree *node)
             return -1;
     }
 
-    node->parent_color = (unsigned long)parent;     // 设置新增节点的父节点，新节点的默认颜色为红色
+    node->parent_color = (uintptr_t)parent;     // 设置新增节点的父节点，新节点的默认颜色为红色
     node->left_son = NULL;
     node->right_son = NULL;
     *pn = node;                                     // 设置父节点的左或右节点为新节点

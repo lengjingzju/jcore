@@ -42,6 +42,8 @@ int main(void)
     jsocket_jaddr_t jaddr = {0}, taddr = {0};
     int ret = 0;
 
+    jsocket_wsa_init();
+
 #if JHEAP_DEBUG
     jheap_init_debug(4);
     jheap_start_debug();

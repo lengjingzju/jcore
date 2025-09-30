@@ -51,7 +51,7 @@ typedef enum {
 static int _parse_value(char *s, char *e, jini_node_t *pn, int offset)
 {
     char *p = NULL, *ptr = NULL, *last = NULL;
-    int len = e - s;
+    int len = (int)(e - s);
     int size = 0;
     char c = '\0';
 
@@ -96,7 +96,7 @@ static int _parse_value(char *s, char *e, jini_node_t *pn, int offset)
                 return -1;
             }
 
-            size = p - last - 1;
+            size = (int)(p - last - 1);
             memcpy(ptr, last, size);
             ptr += size;
             *ptr++ = c;
@@ -108,13 +108,13 @@ static int _parse_value(char *s, char *e, jini_node_t *pn, int offset)
         ++p;
     }
 
-    size = p - last;
+    size = (int)(p - last);
     if (size) {
         memcpy(ptr, last, size);
         ptr += size;
     }
     *ptr = '\0';
-    pn->len = ptr - pn->val;
+    pn->len = (uint32_t)(ptr - pn->val);
 
     return 0;
 }
@@ -133,7 +133,7 @@ void *jini_init(const char *fname)
     jslist_init_head(&mgr->head);
 
     if (fname && fname[0]) {
-        mgr->flen = strlen(fname);
+        mgr->flen = (int)strlen(fname);
         mgr->fname = (char *)jheap_malloc(mgr->flen + 1);
         if (!mgr->fname) {
             jheap_free(mgr);
@@ -218,7 +218,7 @@ void *jini_init(const char *fname)
                         }
 
 section:
-                        len = (p - s) - space;
+                        len = (int)((p - s) - space);
                         space = 0;
                         if (!len) {
                             JINI_ERROR("section is space, offset = %d!", (int)(p - buf));
@@ -260,7 +260,7 @@ section:
                         ++space;
                         break;
                     case '=':
-                        len = (p - s) - space;
+                        len = (int)((p - s) - space);
                         space = 0;
                         if (!len) {
                             JINI_ERROR("key is space, offset = %d!", (int)(p - buf));
@@ -385,7 +385,7 @@ section:
                             break;
                         }
 
-                        if (_parse_value(s, p, pn, p - buf) < 0)
+                        if (_parse_value(s, p, pn, (int)(p - buf)) < 0)
                             goto err;
                         choice = PARSE_IDLE;
                         break;
@@ -437,9 +437,10 @@ int jini_flush(void* hd, const char *fname)
     const char *path = NULL;
     char *fbak = NULL;
     int plen = 0;
+    int ret = 0;
 
     if (fname && fname[0]) {
-        plen = strlen(fname);
+        plen = (int)strlen(fname);
         path = fname;
     } else {
         if (!fname && !mgr->changed && jfs_existed(mgr->fname))
@@ -458,7 +459,7 @@ int jini_flush(void* hd, const char *fname)
         JINI_ERROR("malloc failed!");
         return -1;
     }
-    memcpy(fbak, fname, plen);
+    memcpy(fbak, path, plen);
     memcpy(fbak + plen, ".bak", 4);
     fbak[plen + 4] = '\0';
 
@@ -468,7 +469,7 @@ int jini_flush(void* hd, const char *fname)
         return -1;
     }
 
-    jslist_for_each_entry(ps, &mgr->head, list) {
+    jslist_for_each_entry(ps, &mgr->head, list, jini_section_t) {
         if (!jslist_empty(&ps->head)) {
             if (jfcache_write(fd, "[", 1) < 0)
                 goto err;
@@ -477,7 +478,7 @@ int jini_flush(void* hd, const char *fname)
             if (jfcache_write(fd, "]\n", 2) < 0)
                 goto err;
 
-            jslist_for_each_entry(pn, &ps->head, list) {
+            jslist_for_each_entry(pn, &ps->head, list, jini_node_t) {
                 if (jfcache_write(fd, pn->key, strlen(pn->key)) < 0)
                     goto err;
                 if (jfcache_write(fd, " = ", 3) < 0)
@@ -546,10 +547,10 @@ next:
     }
 
     jfs_rmfile(path);
-    jfs_rename(fbak, path);
+    ret = jfs_rename(fbak, path);
     jheap_free(fbak);
     mgr->changed = 0;
-    return 0;
+    return ret;
 err:
     jfcache_close(fd);
     jfs_rmfile(fbak);
@@ -562,7 +563,7 @@ static jini_section_t *jini_get_section(void *hd, const char *section, jini_sect
     jini_mgr_t *mgr = (jini_mgr_t *)hd;
     jini_section_t *p = NULL, *pos = NULL, *n = NULL;
 
-    jslist_for_each_entry_safe(p, pos, n, &mgr->head, list) {
+    jslist_for_each_entry_safe(p, pos, n, &mgr->head, list, jini_section_t) {
         if (strcmp(pos->key, section) == 0) {
             if (prev)
                 *prev = p;
@@ -577,7 +578,7 @@ static jini_node_t *jini_get_node(jini_section_t *section, const char *key, jini
 {
     jini_node_t *p = NULL, *pos = NULL, *n = NULL;
 
-    jslist_for_each_entry_safe(p, pos, n, &section->head, list) {
+    jslist_for_each_entry_safe(p, pos, n, &section->head, list, jini_node_t) {
         if (strcmp(pos->key, key) == 0) {
             if (prev)
                 *prev = p;
@@ -621,7 +622,7 @@ void jini_del_section(void *hd, const char *section)
     jslist_del(&ps->list, &prev_pg->list, &mgr->head);
     if (!jslist_empty(&ps->head)) {
         mgr->changed = 1;
-        jslist_for_each_entry_safe(p, pos, n, &ps->head, list) {
+        jslist_for_each_entry_safe(p, pos, n, &ps->head, list, jini_node_t) {
             jslist_del(&pos->list, &p->list, &ps->head);
             if (pos->len)
                 jheap_free(pos->val);
@@ -640,11 +641,11 @@ void jini_del_all(void *hd)
     jini_section_t *sp = NULL, *spos = NULL, *sn = NULL;
     jini_node_t *p = NULL, *pos = NULL, *n = NULL;
 
-    jslist_for_each_entry_safe(sp, spos, sn, &mgr->head, list) {
+    jslist_for_each_entry_safe(sp, spos, sn, &mgr->head, list, jini_section_t) {
         jslist_del(&spos->list, &sp->list, &mgr->head);
         if (!jslist_empty(&spos->head)) {
             mgr->changed = 1;
-            jslist_for_each_entry_safe(p, pos, n, &spos->head, list) {
+            jslist_for_each_entry_safe(p, pos, n, &spos->head, list, jini_node_t) {
                 jslist_del(&pos->list, &p->list, &spos->head);
                 if (pos->len)
                     jheap_free(pos->val);
@@ -716,7 +717,7 @@ static int _jini_set(void *hd, const char *section, const char *key, const char 
     }
 
     if (val)
-        len = strlen(val);
+        len = (int)strlen(val);
 
     if (pn) {
         if (len == pn->len && strcmp(val, pn->val) == 0)

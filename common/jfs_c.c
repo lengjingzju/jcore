@@ -87,28 +87,28 @@ int jfs_writeall(const char *fname, const char *buf, size_t count)
     }                               \
 } while (0)
 
-static long cmp00(const jfs_dirent_t *a, const jfs_dirent_t *b) { return strcmp(a->name, b->name); }
-static long cmp01(const jfs_dirent_t *a, const jfs_dirent_t *b) { return strcmp(b->name, a->name); }
-static long cmp02(const jfs_dirent_t *a, const jfs_dirent_t *b) { return a->size  - b->size; }
-static long cmp03(const jfs_dirent_t *a, const jfs_dirent_t *b) { return b->size  - a->size; }
-static long cmp04(const jfs_dirent_t *a, const jfs_dirent_t *b) { return a->mtime - b->mtime; }
-static long cmp05(const jfs_dirent_t *a, const jfs_dirent_t *b) { return b->mtime - a->mtime; }
+static long long cmp00(const jfs_dirent_t *a, const jfs_dirent_t *b) { return strcmp(a->name, b->name); }
+static long long cmp01(const jfs_dirent_t *a, const jfs_dirent_t *b) { return strcmp(b->name, a->name); }
+static long long cmp02(const jfs_dirent_t *a, const jfs_dirent_t *b) { return a->size  - b->size; }
+static long long cmp03(const jfs_dirent_t *a, const jfs_dirent_t *b) { return b->size  - a->size; }
+static long long cmp04(const jfs_dirent_t *a, const jfs_dirent_t *b) { return a->mtime - b->mtime; }
+static long long cmp05(const jfs_dirent_t *a, const jfs_dirent_t *b) { return b->mtime - a->mtime; }
 
-static long cmp10(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(-1, 1); return strcmp(a->name, b->name); }
-static long cmp11(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(-1, 1); return strcmp(b->name, a->name); }
-static long cmp12(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(-1, 1); return a->size  - b->size; }
-static long cmp13(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(-1, 1); return b->size  - a->size; }
-static long cmp14(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(-1, 1); return a->mtime - b->mtime; }
-static long cmp15(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(-1, 1); return b->mtime - a->mtime; }
+static long long cmp10(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(-1, 1); return strcmp(a->name, b->name); }
+static long long cmp11(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(-1, 1); return strcmp(b->name, a->name); }
+static long long cmp12(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(-1, 1); return a->size  - b->size; }
+static long long cmp13(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(-1, 1); return b->size  - a->size; }
+static long long cmp14(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(-1, 1); return a->mtime - b->mtime; }
+static long long cmp15(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(-1, 1); return b->mtime - a->mtime; }
 
-static long cmp20(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(1, -1); return strcmp(a->name, b->name); }
-static long cmp21(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(1, -1); return strcmp(b->name, a->name); }
-static long cmp22(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(1, -1); return a->size  - b->size; }
-static long cmp23(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(1, -1); return b->size  - a->size; }
-static long cmp24(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(1, -1); return a->mtime - b->mtime; }
-static long cmp25(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(1, -1); return b->mtime - a->mtime; }
+static long long cmp20(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(1, -1); return strcmp(a->name, b->name); }
+static long long cmp21(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(1, -1); return strcmp(b->name, a->name); }
+static long long cmp22(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(1, -1); return a->size  - b->size; }
+static long long cmp23(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(1, -1); return b->size  - a->size; }
+static long long cmp24(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(1, -1); return a->mtime - b->mtime; }
+static long long cmp25(const jfs_dirent_t *a, const jfs_dirent_t *b) { CMP_TYPE_DIR(1, -1); return b->mtime - a->mtime; }
 
-typedef long (*dir_cmp_t)(const jfs_dirent_t *, const jfs_dirent_t *);
+typedef long long (*dir_cmp_t)(const jfs_dirent_t *, const jfs_dirent_t *);
 
 static int quick_sortdir_step(jfs_dirent_t *dirs, int left, int right, dir_cmp_t cmp)
 {
