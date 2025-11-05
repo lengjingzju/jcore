@@ -6,32 +6,31 @@
 *******************************************/
 #include <stdlib.h>
 #include "jlog_core.h"
+#include "jheap.h"
 #include "jprbtree.h"
-
-/* 运行的命令：./jrbtree.sh jprbtree "struct jprbtree" "int" */
 
 static struct jprbtree_root s_rbtree_root;
 static struct jprbtree_pool s_rbtree_pool;
 
-static int rbtree_key_cmp(int *node, const void *key)
+static int rbtree_key_cmp(void **node, const void *key)
 {
-    return *node - *(const int *)key;
+    return **(int **)node - *(const int *)key;
 }
 
-static int rbtree_node_cmp(int *a, int *b)
+static int rbtree_node_cmp(void **a, void **b)
 {
-    return *a - *b;
+    return **(int **)a - **(int **)b;
 }
 
 static void rbtree_print_all(void)
 {
     struct jprbtree_root *root = &s_rbtree_root;
-    int *node;
+    void **node;
 
     printf("All rbtree nodes (%d): ", root->num);
     node = jprbtree_first(root);
     while (node) {
-        printf("%d ", *node);
+        printf("%d ", **(int **)node);
         node = jprbtree_next(root, node);
     }
 }
@@ -40,12 +39,13 @@ static void rbtree_del_all(void)
 {
     struct jprbtree_root *root = &s_rbtree_root;
     struct jprbtree_pool *pool = &s_rbtree_pool;
-    int *node, *next;
+    void **node, **next;
 
     node = jprbtree_first(root);
     while (node) {
         next = jprbtree_next(root, node);
         jprbtree_del(root, node);
+        jheap_free(*(int **)node);
         pool->free(pool, node);
         node = next;
     }
@@ -58,12 +58,13 @@ static int rbtree_add_node(int value)
 {
     struct jprbtree_root *root = &s_rbtree_root;
     struct jprbtree_pool *pool = &s_rbtree_pool;
-    int *node;
+    void **node;
 
     node = pool->alloc(pool);
-    *node = value;
+    *(int **)node = (int *)jheap_malloc(sizeof(int));
+    **(int **)node = value;
     jprbtree_add(root, node);
-    printf("Add %d, ", *node);
+    printf("Add %d, ", **(int **)node);
     rbtree_print_all();
     printf("\n");
 
@@ -74,7 +75,7 @@ static int rbtree_del_node(int value)
 {
     struct jprbtree_root *root = &s_rbtree_root;
     struct jprbtree_pool *pool = &s_rbtree_pool;
-    int *node = NULL;
+    void **node;
 
     node = jprbtree_search(root, &value);
     if (!node) {
@@ -82,6 +83,7 @@ static int rbtree_del_node(int value)
         return -1;
     }
     jprbtree_del(root, node);
+    jheap_free(*(int **)node);
     pool->free(pool, node);
     printf("Del %d, ", value);
     rbtree_print_all();

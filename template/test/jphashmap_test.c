@@ -7,16 +7,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "jheap.h"
 #include "jpheap.h"
 #include "jphashmap.h"
 
-/* 运行的命令：./jhashmap.sh jphashmap "struct jphashmap" "Name" y
-               并将Name结构体加入到生成的jphashmap.h里
 typedef struct {
     unsigned int hash;
     const char *name;
 } Name;
-*/
 
 #define HASHMAP_SHIFT       7
 #define HASHMAP_NUM         (1u << HASHMAP_SHIFT)
@@ -42,46 +40,48 @@ static unsigned int jphashmap_key_hash(const void *key)
     return hash;
 }
 
-static unsigned jphashmap_node_hash(Name *node)
+static unsigned jphashmap_node_hash(void **node)
 {
-    return node->hash;
+    return (*(Name **)node)->hash;
 }
 
-static int jphashmap_key_cmp(Name *node, const void *key)
+static int jphashmap_key_cmp(void **node, const void *key)
 {
-    return (int)(node->hash - jphashmap_key_hash(key));
+    return (int)((*(Name **)node)->hash - jphashmap_key_hash(key));
 }
 
-static int jphashmap_node_cmp(Name *a, Name *b)
+static int jphashmap_node_cmp(void **a, void **b)
 {
-    return (int)(a->hash - b->hash);
+    return (int)((*(Name **)a)->hash - (*(Name **)b)->hash);
 }
 
-static uintptr_t _jphashmap_print_cb(Name *node, unsigned int mask)
+static uintptr_t _jphashmap_print_cb(void **node, unsigned int mask)
 {
+    Name *data = *(Name **)node;
     printf("bucket: %3u, hash: %10u, name: %s\n",
-        node->hash & mask, node->hash, node->name);
+        data->hash & mask, data->hash, data->name);
     return JHASHMAP_NEXT;
 }
 
-static uintptr_t jphashmap_print_cb(Name *node)
+static uintptr_t jphashmap_print_cb(void **node)
 {
     return _jphashmap_print_cb(node, HASHMAP_MASK);
 }
 
-static uintptr_t jphashmap_add_print_cb(Name *node)
+static uintptr_t jphashmap_add_print_cb(void **node)
 {
     return _jphashmap_print_cb(node, HASHMAP_ADD_MASK);
 }
 
-static uintptr_t jphashmap_sub_print_cb(Name *node)
+static uintptr_t jphashmap_sub_print_cb(void **node)
 {
     return _jphashmap_print_cb(node, HASHMAP_SUB_MASK);
 }
 
-static uintptr_t jphashmap_free_cb(Name *node)
+static uintptr_t jphashmap_free_cb(void **node)
 {
     static struct jphashmap_pool *pool = &s_hashmap_pool;
+    jheap_free(*(Name **)node);
     pool->free(pool, node);
     return JHASHMAP_DEL;
 }
@@ -93,6 +93,7 @@ static void jphashmap_test_indexs(void)
 
 #define STR_NUM2     128
     Name *val = NULL;
+    void **data = NULL;
     int i = 0;
     const char *strs2[STR_NUM2] = {
         // 水果类
@@ -130,10 +131,12 @@ static void jphashmap_test_indexs(void)
     };
 
     for (i = 0; i < STR_NUM2; ++i) {
-        val = pool->alloc(pool);
+        val = (Name *)jheap_malloc(sizeof(Name));
         val->hash = jphashmap_key_hash(strs2[i]);
         val->name = strs2[i];
-        jphashmap_fast_add(root, val);
+        data = pool->alloc(pool);
+        *(Name **)data = val;
+        jphashmap_fast_add(root, data);
     }
 
     printf("\nNew hashmap elements are:\n");
@@ -157,7 +160,8 @@ int main(void)
     static struct jphashmap_root *root = &s_hashmap_root;
 
     Name *val = NULL;
-    Name *cur = NULL, *prev = NULL;
+    void **data = NULL;
+    void **cur = NULL, **prev = NULL;
     int i = 0;
     const char *strs[STR_NUM] = {"name", "age", "gender", "culture", "address", "phone", "email", "hobby"};
 
@@ -170,20 +174,25 @@ int main(void)
     jphashmap_init(root, HASHMAP_SHIFT, pool);
 
     for (i = 0; i < STR_NUM; ++i) {
-        val = pool->alloc(pool);
+        val = (Name *)jheap_malloc(sizeof(Name));
         val->hash = jphashmap_key_hash(strs[i]);
         val->name = strs[i];
-        jphashmap_fast_add(root, val);
+        data = pool->alloc(pool);
+        *(Name **)data = val;
+        jphashmap_fast_add(root, data);
     }
 
     printf("Priority hashmap elements are:\n");
     jphashmap_loop(root, jphashmap_print_cb);
 
-    val = pool->alloc(pool);
+    val = (Name *)jheap_malloc(sizeof(Name));
     val->hash = jphashmap_key_hash("hobby");
     val->name = "hobby";
-    cur = jphashmap_add(root, val);
+    data = pool->alloc(pool);
+    *(Name **)data = val;
+    cur = jphashmap_add(root, data);
     if (cur) {
+        jheap_free(*(Name **)cur);
         pool->free(pool, cur);
     }
     printf("Add same node(%s), find=%s, hashmap elements are:\n", "hobby", cur ? "true" : "false");
@@ -194,6 +203,7 @@ int main(void)
 
     if (cur) {
         jphashmap_del(root, cur, prev);
+        jheap_free(*(Name **)cur);
         pool->free(pool, cur);
     }
     printf("Del node(%s), hashmap elements are:\n", "culture");

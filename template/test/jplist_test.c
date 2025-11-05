@@ -6,9 +6,8 @@
 *******************************************/
 #include <stdlib.h>
 #include "jlog_core.h"
+#include "jheap.h"
 #include "jplist.h"
-
-/* 运行的命令：./jlist.sh jplist "struct jplist" "int" */
 
 static struct jplist_root s_list_root;
 static struct jplist_pool s_list_pool;
@@ -16,11 +15,11 @@ static struct jplist_pool s_list_pool;
 static void list_print_all(void)
 {
     struct jplist_root *root = &s_list_root;
-    int *node;
+    void **node;
 
     printf("All list nodes (%d): ", root->num);
-    jplist_for_each_entry(node, root, int) {
-        printf("%d ", *node);
+    jplist_for_each_entry(node, root) {
+        printf("%d ", **(int **)node);
     }
 }
 
@@ -28,9 +27,10 @@ static void list_del_all(void)
 {
     struct jplist_root *root = &s_list_root;
     struct jplist_pool *pool = &s_list_pool;
-    int *node, *next;
+    void **node, **next;
 
-    jplist_for_each_entry_safe(node, next, root, int) {
+    jplist_for_each_entry_safe(node, next, root) {
+        jheap_free(*(int **)node);
         jplist_del(root, node);
         pool->free(pool, node);
     }
@@ -44,12 +44,13 @@ static int list_add_node_last(int value)
 {
     struct jplist_root *root = &s_list_root;
     struct jplist_pool *pool = &s_list_pool;
-    int *node;
+    void **node;
 
     node = pool->alloc(pool);
-    *node = value;
+    *(int **)node = (int *)jheap_malloc(sizeof(int));
+    **(int **)node = value;
     jplist_add_last(root, node);
-    printf("Add %d, ", *node);
+    printf("Add %d, ", **(int **)node);
     list_print_all();
     printf("\n");
 
@@ -60,12 +61,13 @@ static int list_add_node_first(int value)
 {
     struct jplist_root *root = &s_list_root;
     struct jplist_pool *pool = &s_list_pool;
-    int *node;
+    void **node;
 
     node = pool->alloc(pool);
-    *node = value;
+    *(int **)node = (int *)jheap_malloc(sizeof(int));
+    **(int **)node = value;
     jplist_add_first(root, node);
-    printf("Add tail %d, ", *node);
+    printf("Add tail %d, ", **(int **)node);
     list_print_all();
     printf("\n");
 
@@ -76,10 +78,10 @@ static int list_del_node(int value)
 {
     struct jplist_root *root = &s_list_root;
     struct jplist_pool *pool = &s_list_pool;
-    int *node = NULL;
+    void **node = NULL;
 
-    jplist_for_each_entry(node, root, int) {
-        if (*node == value)
+    jplist_for_each_entry(node, root) {
+        if (**(int **)node == value)
             goto next;
     }
 
@@ -89,6 +91,7 @@ static int list_del_node(int value)
     }
 next:
     jplist_del(root, node);
+    jheap_free(*(int **)node);
     pool->free(pool, node);
     printf("Del %d, ", value);
     list_print_all();

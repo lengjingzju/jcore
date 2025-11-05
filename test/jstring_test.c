@@ -1,3 +1,9 @@
+/*******************************************
+* SPDX-License-Identifier: MIT             *
+* Copyright (C) 2024-.... Jing Leng        *
+* Contact: Jing Leng <lengjingzju@163.com> *
+* https://github.com/lengjingzju/jcore     *
+*******************************************/
 #include <stdio.h>
 #include <string.h>
 #include "jstring.h"
