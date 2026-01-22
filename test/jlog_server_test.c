@@ -28,7 +28,7 @@ static jthread_ret_t jlog_serv_run(void *arg)
         length += len;
     }
 
-    LLOG_INFO("socket %d exit: total length = %llu\n", afd, (unsigned long long)length);
+    LLOG_INFO("socket %d exit: total length = %llu\n", (int)afd, (unsigned long long)length);
     jsocket_close(afd);
     return (jthread_ret_t)0;
 }
@@ -69,7 +69,7 @@ int main(void)
             LLOG_ERROR("jsocket_tcp_accept() failed!\n");
             continue;
         }
-        LLOG_INFO("accept %s:%hu as %d.\n", taddr.addr, taddr.port, afd);
+        LLOG_INFO("accept %s:%hu as %d.\n", taddr.addr, taddr.port, (int)afd);
 
         arg = (jsocket_fd_t *)jheap_malloc(sizeof(jsocket_fd_t));
         if (!arg) {

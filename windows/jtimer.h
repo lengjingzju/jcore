@@ -5,6 +5,7 @@
 * https://github.com/lengjingzju/jcore     *
 *******************************************/
 #pragma once
+#include <stdbool.h>
 #include <windows.h>
 #include "jtime.h"
 
@@ -20,6 +21,17 @@ struct jtimer_ctx {
     HANDLE wake_handle;    // 唤醒事件句柄
     LARGE_INTEGER freq;    // 缓存系统时钟
 };
+
+/**
+ * @brief   判断定时器句柄是否有效
+ * @param   ctx [IN] 定时器会话管理结构
+ * @return  有效返回true；无效返回false
+ * @note    无
+ */
+static inline bool jtimer_valid(struct jtimer_ctx *ctx)
+{
+    return (ctx->timer_handle != NULL) && (ctx->wake_handle != NULL);
+}
 
 /**
  * @brief   初始化定时器

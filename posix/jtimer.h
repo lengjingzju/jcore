@@ -5,6 +5,7 @@
 * https://github.com/lengjingzju/jcore     *
 *******************************************/
 #pragma once
+#include <stdbool.h>
 #include <sys/timerfd.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
@@ -22,6 +23,17 @@ struct jtimer_ctx {
     int timer_fd;   // 定时器描述符
     int wake_fd;    // 事件唤醒描述符
 };
+
+/**
+ * @brief   判断定时器句柄是否有效
+ * @param   ctx [IN] 定时器会话管理结构
+ * @return  有效返回true；无效返回false
+ * @note    无
+ */
+static inline bool jtimer_valid(struct jtimer_ctx *ctx)
+{
+    return (ctx->epoll_fd >= 0) && (ctx->timer_fd >= 0) && (ctx->wake_fd >= 0);
+}
 
 /**
  * @brief   初始化定时器

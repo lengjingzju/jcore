@@ -200,6 +200,7 @@ int main(void)
 
     cur = jphashmap_find(root, "culture", &prev);
     printf("Find node(%s), find=%s, hashmap elements are:\n", "culture", cur ? "true" : "false");
+    jphashmap_loop(root, jphashmap_print_cb);
 
     if (cur) {
         jphashmap_del(root, cur, prev);

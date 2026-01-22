@@ -23,9 +23,6 @@ ASRCS           = $(OBJ_PREFIX)/jplist.c $(OBJ_PREFIX)/jprbtree.c  $(OBJ_PREFIX)
 AHDRS           = $(patsubst %.c,%.h,$(ASRCS))
 VSRCS          := jhook/jwraphook.c
 INC_MAKES      := app
-object_byte_size= 16384
-frame_byte_size = 16384
-ENV_BUILD_TYPE := release
 include inc.makes
 
 ifneq ($(test_threads), )
@@ -43,6 +40,7 @@ endif
 ifeq ($(check_tofile),y)
 CPFLAGS        += -DJHOOK_FILE
 endif
+check_cycle    ?= 10
 ifneq ($(check_cycle), )
 CPFLAGS        += -DCHECK_COUNT=$(shell expr $(check_cycle) \* 100) -DCHECK_FLAG=1
 endif
