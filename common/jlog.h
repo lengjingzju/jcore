@@ -61,6 +61,14 @@ typedef struct {
 int jlog_init(const jlog_cfg_t *cfg);
 
 /**
+ * @brief   日志初始化
+ * @param   ini [IN] 要解析的ini配置文件
+ * @return  成功返回0; 失败返回-1
+ * @note    解析ini配置文件的配置初始化
+ */
+int jlog_init_ini(const char *ini);
+
+/**
  * @brief   日志反初始化
  * @param   无参数
  * @return  成功返回0; 失败返回-1

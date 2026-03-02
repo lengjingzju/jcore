@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "jlog.h"
+#include "jini.h"
 #include "jtime.h"
 #include "jthread.h"
 #include "jfs.h"
@@ -1042,6 +1043,43 @@ int jlog_init(const jlog_cfg_t *cfg)
     attr.stack_size = JLOG_STACK_SIZE;
     jthread_create(&mgr->tid, &attr, jlog_run, NULL);
     return 0;
+}
+
+int jlog_init_ini(const char *ini)
+{
+    if (!ini) {
+        return -1;
+    }
+
+    void *hd = jini_init(ini);
+    if (!hd) {
+        return -1;
+    }
+
+    jlog_cfg_t cfg;
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.buf_size = jini_get_int(hd, "jlog", "buf_size", 1024) << 10;
+    cfg.wake_size = jini_get_int(hd, "jlog", "wake_size", 64) << 10;
+    cfg.res_size = jini_get_int(hd, "jlog", "res_size", 1024);
+    cfg.level = jini_get_int(hd, "jlog", "level", JLOG_LEVEL_INFO);
+    cfg.mode = (jlog_mode_t)jini_get_int(hd, "jlog", "mode", JLOG_TO_NET);
+
+    cfg.file.file_size = jini_get_int(hd, "jlog", "file_size", 1024) << 10;
+    cfg.file.file_count = jini_get_int(hd, "jlog", "file_count", 10);
+    cfg.file.file_path = jini_get(hd, "jlog", "file_path", "jlog");
+
+    cfg.net.is_ipv6 = jini_get_int(hd, "jlog", "is_ipv6", 0);
+    cfg.net.ip_port = jini_get_int(hd, "jlog", "ip_port", 9999);
+    cfg.net.ip_addr = jini_get(hd, "jlog", "ip_addr", "127.0.0.1");
+
+    cfg.perf.cpu_cycle = jini_get_int(hd, "jlog", "cpu_cycle", 0);
+    cfg.perf.mem_cycle = jini_get_int(hd, "jlog", "mem_cycle", 0);
+    cfg.perf.net_cycle = jini_get_int(hd, "jlog", "net_cycle", 0);
+
+    int ret = jlog_init(&cfg);
+    jini_uninit(hd);
+
+    return ret;
 }
 
 void jlog_uninit(void)

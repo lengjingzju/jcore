@@ -14,7 +14,7 @@
 extern "C" {
 #endif
 
-#define JCORE_VERSION        0x010100
+#define JCORE_VERSION        0x010101
 
 /**
  * @brief   日志输出等级
