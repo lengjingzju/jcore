@@ -83,22 +83,6 @@ ${T} {
 };
 
 /**
- * @brief   从节点的链表成员指针获取数据节点的指针
- * @param   ptr [IN] 节点的数据成员指针
- * @return  返回数据节点的指针
- * @note    无
- */
-#define ${name}_node_entry(ptr)         ((${T} *)(ptr))
-
-/**
- * @brief   从节点的数据成员指针获取数据节点的指针
- * @param   ptr [IN] 节点的数据成员指针
- * @return  返回数据节点的指针
- * @note    无
- */
-#define ${name}_data_entry(ptr)         ((${T} *)((char *)(ptr)-(uintptr_t)(&((${T} *)0)->data)))
-
-/**
  * @brief   内存池管理结构
  */
 struct ${name}_pool {
@@ -155,13 +139,29 @@ struct ${name}_root {
 };
 
 /**
+ * @brief   从节点的链表成员指针获取数据节点的指针
+ * @param   ptr [IN] 节点的数据成员指针
+ * @return  返回数据节点的指针
+ * @note    无
+ */
+#define ${name}_node_entry(ptr)         ((${T} *)((char *)(ptr)-(uintptr_t)(&((${T} *)0)->node)))
+
+/**
+ * @brief   从节点的数据成员指针获取数据节点的指针
+ * @param   ptr [IN] 节点的数据成员指针
+ * @return  返回数据节点的指针
+ * @note    无
+ */
+#define ${name}_data_entry(ptr)         ((${T} *)((char *)(ptr)-(uintptr_t)(&((${T} *)0)->data)))
+
+/**
  * @brief   通过序号获取链表节点的指针
  * @param   root [IN] 双向循环链表管理结构
  * @param   index [IN] 数据节点在内存池中的序号
  * @return  返回链表节点的指针
  * @note    无
  */
-#define ${NAME}_FROM_INDEX(root, index)  (&(root)->pool->begin[index].node)
+#define ${NAME}_FROM_INDEX(root, index) (&(root)->pool->begin[index].node)
 
 /**
  * @brief   通过数据节点的指针获取链表节点的指针
@@ -169,7 +169,7 @@ struct ${name}_root {
  * @return  返回链表节点的指针
  * @note    无
  */
-#define ${NAME}_FROM_DATA(ptr)          ((${name}_node_t *)((char *)(ptr)-(uintptr_t)(&((${T} *)0)->data)))
+#define ${NAME}_FROM_DATA(ptr)          (&(${name}_data_entry(ptr)->node))
 
 /**
  * @brief   初始化双向链表管理结构
@@ -218,7 +218,7 @@ static inline void ${name}_uninit(struct ${name}_root *root)
  * @return  链表为空时返回真，否则返回假
  * @note    无
  */
-static inline int ${name}_empty(struct ${name}_root *root)
+static inline int ${name}_empty(const struct ${name}_root *root)
 {
     return root->num ? 0 : 1;
 }
@@ -229,9 +229,59 @@ static inline int ${name}_empty(struct ${name}_root *root)
  * @return  返回数据节点的数量
  * @note    无
  */
-static inline int ${name}_size(struct ${name}_root *root)
+static inline int ${name}_size(const struct ${name}_root *root)
 {
     return root->num;
+}
+
+/**
+ * @brief   查询链表第一个节点
+ * @param   root [IN] 双向链表管理结构
+ * @return  返回找到的数据节点
+ * @note    无
+ */
+static inline ${ST} *${name}_first(const struct ${name}_root *root)
+{
+    return root->num ? root->pool->data_unsafe(root->pool,
+        ${NAME}_FROM_INDEX(root, root->index)->next) : NULL;
+}
+
+/**
+ * @brief   查询链表最后一个节点
+ * @param   root [IN] 双向链表管理结构
+ * @return  返回找到的数据节点
+ * @note    无
+ */
+static inline ${ST} *${name}_last(const struct ${name}_root *root)
+{
+    return root->num ? root->pool->data_unsafe(root->pool,
+        ${NAME}_FROM_INDEX(root, root->index)->prev) : NULL;
+}
+
+/**
+ * @brief   查询链表node节点的下一节点
+ * @param   root [IN] 双向链表管理结构
+ * @param   node [IN] 参考的数据节点
+ * @return  返回找到的数据节点
+ * @note    无
+ */
+static inline ${ST} *${name}_next(const struct ${name}_root *root, ${ST} *node)
+{
+    ${ST} *ret = root->pool->data_unsafe(root->pool, ${NAME}_FROM_DATA(node)->next);
+    return root->pool->index_unsafe(root->pool, ret) != root->index ? ret : NULL;
+}
+
+/**
+ * @brief   查询链表node节点的上一节点
+ * @param   root [IN] 双向链表管理结构
+ * @param   node [IN] 参考的数据节点
+ * @return  返回找到的数据节点
+ * @note    无
+ */
+static inline ${ST} *${name}_prev(const struct ${name}_root *root, ${ST} *node)
+{
+    ${ST} *ret = root->pool->data_unsafe(root->pool, ${NAME}_FROM_DATA(node)->prev);
+    return root->pool->index_unsafe(root->pool, ret) != root->index ? ret : NULL;
 }
 
 /**

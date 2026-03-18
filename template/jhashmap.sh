@@ -124,6 +124,7 @@ void ${name}_uninit_pool(struct ${name}_pool *pool);
 
 /**
  * @brief   哈希表的桶结构(紧凑型)
+ * @note    限制最大移位为15，则最大桶数为 1<<15
  */
 struct jphashmap_short {
     unsigned short next;    // 指向前一个桶序号
@@ -133,7 +134,6 @@ struct jphashmap_short {
 
 /**
  * @brief   哈希表的桶结构(大容量型)
- * @note    限制最大移位为15，则最大桶数为 1<<15
  */
 struct jphashmap_long {
     unsigned int next;      // 指向前一个桶序号
@@ -289,10 +289,10 @@ cat <<EOF> ${name}.c
 #define JHASHMAP_MAX_SHIFT              ${shiftv}
 #define JHASHMAP_INVALID                -1
 
-#define ${name}_node_entry(ptr)         ((${T} *)(ptr))
+#define ${name}_node_entry(ptr)         ((${T} *)((char *)(ptr)-(uintptr_t)(&((${T} *)0)->node)))
 #define ${name}_data_entry(ptr)         ((${T} *)((char *)(ptr)-(uintptr_t)(&((${T} *)0)->data)))
 #define ${NAME}_FROM_INDEX(root, index) (&(root)->pool->begin[index].node)
-#define ${NAME}_FROM_DATA(ptr)          ((struct jphashmap_node *)((char *)(ptr)-(uintptr_t)(&((${T} *)0)->data)))
+#define ${NAME}_FROM_DATA(ptr)          (&(${name}_data_entry(ptr)->node))
 
 static inline ${ST} *_${name}_alloc00(struct ${name}_pool *pool)
 {

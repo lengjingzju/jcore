@@ -50,7 +50,7 @@ static int list_add_node_last(int value)
     *(int **)node = (int *)jheap_malloc(sizeof(int));
     **(int **)node = value;
     jplist_add_last(root, node);
-    printf("Add %d, ", **(int **)node);
+    printf("Add to last %d, ", **(int **)node);
     list_print_all();
     printf("\n");
 
@@ -67,7 +67,7 @@ static int list_add_node_first(int value)
     *(int **)node = (int *)jheap_malloc(sizeof(int));
     **(int **)node = value;
     jplist_add_first(root, node);
-    printf("Add tail %d, ", **(int **)node);
+    printf("Add to first %d, ", **(int **)node);
     list_print_all();
     printf("\n");
 
