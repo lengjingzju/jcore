@@ -81,6 +81,9 @@
     <ClInclude Include="..\..\windows\jfs.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\common\jringbuf.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\windows\jperf.c">
@@ -126,6 +129,9 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="..\..\common\jbheap.c">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\common\jringbuf.c">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

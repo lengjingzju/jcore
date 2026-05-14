@@ -180,7 +180,7 @@ typedef jthread_ret_t (*jthread_run_t)(void*);
  *          1. yield让出CPU后仍可能立即返回并继续执行原进程，不会进入阻塞状态
  *          2. sleep使线程进入阻塞状态，直到指定时间结束或被信号唤醒
  */
-#define jthread_yield()                 pthread_yield()
+#define jthread_yield()                 sched_yield()
 
 /**
  * @brief   线程退出
