@@ -35,12 +35,13 @@ struct jringbuf {
     uint32_t        hold_size;          // 是否保留一定的历史数据以便可以新消费者可以消费历史数据
     enum jringbuf_read_mode read_mode;  // 读指针管理模式
     uint8_t         disable_rw;         // 是否禁止读写
+    uint8_t         min_read_stale;     // 1 表示 min_read_index 需要重新计算（惰性）
+    uint8_t         min_read_lock;      // 1 表示正在读取数据，不能改变 min_read_index (单消费者)
     uint32_t        rw_count;           // 正在读写的生产者或消费者数目
 
     uint32_t        write_index;        // 绝对写位置，单调递增，利用自然溢出
     uint32_t        data_len;           // 有效数据长度 = write_index - min_read_index
     uint32_t        min_read_index;     // 活跃消费者中最小的读位置
-    int             min_read_stale;     // 1 表示 min_read_index 需要重新计算（惰性）
 
     jthread_mutex_t mutex;              // 全局互斥锁
     jthread_cond_t  not_empty;          // 数据可用条件变量（单调时钟）
@@ -173,6 +174,7 @@ jringbuf_t* jringbuf_init(uint32_t                     capacity,
     rb->data_len       = 0;
     rb->min_read_index = 0;
     rb->min_read_stale = 0;
+    rb->min_read_lock  = 0;
 
     uint32_t off = 0;
     rb->buf_offset             = off; off += buf_size;
@@ -316,7 +318,9 @@ int jringbuf_write(jringbuf_t *rb, int producer_id, const void *data, uint32_t l
     int retry    = (strategy & JRINGBUF_RETRY)    ? 1 : 0;
     uint32_t space = 0;
     uint32_t need = complete ? len : 1;       /* 最少需要空间 */
+    uint32_t drop_need, drop_amount;
 
+redo:
     jthread_mutex_lock(&rb->mutex);
     if (len > rb->capacity) {
         jthread_mutex_unlock(&rb->mutex);
@@ -384,8 +388,15 @@ int jringbuf_write(jringbuf_t *rb, int producer_id, const void *data, uint32_t l
 
     /* 如果空间仍不够，且允许丢弃旧数据，则执行丢弃 */
     if (space < len && drop) {
-        uint32_t drop_need   = len - space;               // 至少需要丢弃的字节数
-        uint32_t drop_amount = (dropped < drop_need || rb->data_len < drop_need) ? drop_need :
+        while (rb->min_read_lock) {
+            --rb->rw_count;
+            jthread_mutex_unlock(&rb->mutex);
+            jthread_yield();
+            goto redo;
+        }
+
+        drop_need   = len - space;               // 至少需要丢弃的字节数
+        drop_amount = (dropped < drop_need || rb->data_len < drop_need) ? drop_need :
                                (dropped < rb->data_len) ? dropped : rb->data_len;
 
         if (drop_amount <= rb->data_len) {
@@ -437,11 +448,17 @@ int jringbuf_write(jringbuf_t *rb, int producer_id, const void *data, uint32_t l
     uint32_t tail  = rb->capacity - wpos;
     uint32_t first = (to_write <= tail) ? to_write : tail;
 
+    if (rb->max_producers == 1)
+        jthread_mutex_unlock(&rb->mutex);
+
     uint8_t *ring = JRB_BUF(rb);
     memcpy(ring + wpos, data, first);
     if (to_write > tail) {
         memcpy(ring, (const uint8_t*)data + first, to_write - tail);
     }
+
+    if (rb->max_producers == 1)
+        jthread_mutex_lock(&rb->mutex);
 
     rb->write_index += to_write;
     rb->data_len    += to_write;
@@ -559,17 +576,24 @@ int jringbuf_read(jringbuf_t *rb, int consumer_id, void *buf, uint32_t len,
         uint32_t tail  = rb->capacity - rpos;
         uint32_t first = (to_read <= tail) ? to_read : tail;
 
+        if (rb->max_consumers == 1) {
+            rb->min_read_lock = 1;
+            jthread_mutex_unlock(&rb->mutex);
+        }
+
         uint8_t *ring = JRB_BUF(rb);
         memcpy(buf, ring + rpos, first);
         if (to_read > tail) {
             memcpy((uint8_t*)buf + first, ring, to_read - tail);
         }
 
-        /* 更新读位置 */
         if (rb->max_consumers == 1) {
-            rb->min_read_index += to_read;
-            rb->data_len       -= to_read;
-        } else if (rb->read_mode == JRINGBUF_READ_SHARED) {
+            jthread_mutex_lock(&rb->mutex);
+            rb->min_read_lock = 0;
+        }
+
+        /* 更新读位置 */
+        if (rb->max_consumers == 1 || rb->read_mode == JRINGBUF_READ_SHARED) {
             rb->min_read_index += to_read;
             rb->data_len       -= to_read;
         } else {
@@ -752,6 +776,12 @@ int jringbuf_drop_data(jringbuf_t *rb, int consumer_id, uint32_t dropped)
         return -1;
 
     jthread_mutex_lock(&rb->mutex);
+    while (rb->min_read_lock) {
+        jthread_mutex_unlock(&rb->mutex);
+        jthread_yield();
+        jthread_mutex_lock(&rb->mutex);
+    }
+
     uint32_t avail, data, drop;
     uint8_t  *act = NULL;
 
