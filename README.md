@@ -1342,7 +1342,6 @@ graph LR
     - **漂移补偿**：异常延迟时自动对齐系统时间
 
 
-
 ## jringbuf多功能环形缓冲
 
 ### 概述
@@ -1503,6 +1502,7 @@ struct jringbuf {
     uint32_t        max_consumers;      // 最大消费者数量
     uint32_t        cur_consumers;      // 当前消费者数量
     uint32_t        hold_size;          // 历史窗口大小（字节）
+    uint32_t        wake_size;          // 唤醒窗口大小（字节）
     enum jringbuf_read_mode read_mode;  // JRINGBUF_READ_SHARED / EXCLUSIVE
     uint8_t         disable_rw;         // 读写禁止标志
     uint8_t         min_read_stale;     // 惰性更新标志
@@ -1569,6 +1569,7 @@ enum jringbuf_read_mode {
 
 - 使用两个条件变量：`not_empty`（数据可读）和 `not_full`（空间可写），避免无效广播。
 - 写入完成后广播 `not_empty`，读取完成后广播 `not_full`，精确唤醒等待相应资源的线程。
+- 支持生产者写入后buf中的数据大于等于设置值时唤醒消费者
 
 #### 4. 内存紧凑布局
 

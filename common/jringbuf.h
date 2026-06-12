@@ -46,6 +46,7 @@ enum jringbuf_read_mode {
  * @param   max_producers[IN]   最大生产者数量（须 ≥ 1；为 1 时不分配生产者数组）
  * @param   max_consumers[IN]   最大消费者数量（须 ≥ 1；为 1 时不分配消费者数组）
  * @param   hold_size    [IN]   是否保留一定的历史数据以便可以新消费者可以消费历史数据（为 0 时不保留）
+ * @param   wake_size    [IN]   生产者写入后缓冲中的数据大小大于等于此项设置时才唤醒消费者
  * @param   read_mode    [IN]   多消费者时的读模式（max_consumers==1 时忽略，内部强制为 SHARED）
  * @return  成功返回管理器指针；失败返回 NULL
  * @note    1. 结构体、缓冲区、消费者数组、生产者数组分配在连续的一块内存中
@@ -54,7 +55,7 @@ enum jringbuf_read_mode {
  *          4. 多生产者需要显式 jringbuf_add_producer，多消费者需要显式 jringbuf_add_consumer，单的无需
  */
 jringbuf_t* jringbuf_init(uint32_t capacity, uint32_t max_producers, uint32_t max_consumers,
-    uint32_t hold_size, enum jringbuf_read_mode read_mode);
+    uint32_t hold_size, uint32_t wake_size, enum jringbuf_read_mode read_mode);
 
 /**
  * @brief   销毁环形缓冲区并释放所有资源

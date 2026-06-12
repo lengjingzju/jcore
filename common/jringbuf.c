@@ -32,7 +32,8 @@ struct jringbuf {
     uint32_t        cur_producers;      // 当前生产者数量
     uint32_t        max_consumers;      // 最大消费者数量
     uint32_t        cur_consumers;      // 当前消费者数量
-    uint32_t        hold_size;          // 是否保留一定的历史数据以便可以新消费者可以消费历史数据
+    uint32_t        hold_size;          // 历史窗口大小（字节）
+    uint32_t        wake_size;          // 唤醒窗口大小（字节）
     enum jringbuf_read_mode read_mode;  // 读指针管理模式
     uint8_t         disable_rw;         // 是否禁止读写
     uint8_t         min_read_stale;     // 1 表示 min_read_index 需要重新计算（惰性）
@@ -142,6 +143,7 @@ jringbuf_t* jringbuf_init(uint32_t                     capacity,
                           uint32_t                     max_producers,
                           uint32_t                     max_consumers,
                           uint32_t                     hold_size,
+                          uint32_t                     wake_size,
                           enum jringbuf_read_mode      read_mode)
 {
     if (capacity == 0 || max_producers < 1 || max_consumers < 1)
@@ -166,6 +168,7 @@ jringbuf_t* jringbuf_init(uint32_t                     capacity,
     rb->max_consumers = max_consumers;
     rb->cur_consumers = 0;
     rb->hold_size     = hold_size;
+    rb->wake_size     = wake_size;
     rb->read_mode     = (max_consumers == 1) ? JRINGBUF_READ_SHARED : read_mode;
     rb->disable_rw    = 0;
     rb->rw_count      = 0;
@@ -463,7 +466,8 @@ redo:
     rb->write_index += to_write;
     rb->data_len    += to_write;
 
-    jthread_cond_broadcast(&rb->not_empty);
+    if (rb->data_len >= rb->wake_size)
+        jthread_cond_broadcast(&rb->not_empty);
     --rb->rw_count;
     jthread_mutex_unlock(&rb->mutex);
 

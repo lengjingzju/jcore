@@ -45,7 +45,7 @@ static void test_siso_basic(void)
 {
     printf("Test 1: Single Producer Single Consumer basic read/write\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 1, 0, JRINGBUF_READ_SHARED);
+    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 1, 0, 0, JRINGBUF_READ_SHARED);
     test_assert(rb != NULL, "init failed");
 
     /* 写入 10 字节 */
@@ -78,7 +78,7 @@ static void test_complete_strategy(void)
 {
     printf("Test 2: COMPLETE read/write strategy\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 1, 0, JRINGBUF_READ_SHARED);
+    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 1, 0, 0, JRINGBUF_READ_SHARED);
 
     /* 先写入 30 字节，使缓冲区有足够数据 */
     uint8_t wdata[30];
@@ -124,10 +124,14 @@ typedef struct {
 
 static jthread_ret_t producer_block(void *arg) {
     thread_arg_t *targ = (thread_arg_t*)arg;
-    /* 延迟 10ms 再写入，让读者先进去等待 */
-    jthread_msleep(10);
+    /* 延迟 20ms 再写入，让读者先进去等待 */
+    jthread_msleep(20);
     uint8_t data[4] = {1,2,3,4};
     int ret = jringbuf_write(targ->rb, targ->id, data, 4, 0, 0, 0);
+    test_assert(ret == 4, "producer write failed");
+    /* 延迟 30ms 再写入，buf中数据达到指定值才唤醒消费者 */
+    jthread_msleep(30);
+    ret = jringbuf_write(targ->rb, targ->id, data, 4, 0, 0, 0);
     test_assert(ret == 4, "producer write failed");
     return NULL;
 }
@@ -140,7 +144,7 @@ static jthread_ret_t consumer_block(void *arg) {
                             JRINGBUF_BLOCK, -1); /* 无限等待 */
     uint64_t elapsed = now_ms() - start;
     test_assert(ret == 4, "consumer read failed");
-    test_assert(elapsed >= 8, "should have waited at least 8ms");
+    test_assert(elapsed >= 50, "should have waited at about 50ms");
     return NULL;
 }
 
@@ -148,7 +152,9 @@ static void test_block_strategy(void)
 {
     printf("Test 3: BLOCK strategy\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 2, 2, 0, JRINGBUF_READ_SHARED);
+    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 2, 2, 0, 8, // 生产者最少8B数据才唤醒消费者
+                                   JRINGBUF_READ_SHARED);
+
     /* 添加一个消费者 */
     int pid1 = jringbuf_add_producer(rb);
     int cid1 = jringbuf_add_consumer(rb, 0);
@@ -177,7 +183,7 @@ static void test_retry_strategy(void)
 {
     printf("Test 4: RETRY strategy\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 1, 0, JRINGBUF_READ_SHARED);
+    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 1, 0, 0, JRINGBUF_READ_SHARED);
 
     uint8_t rbuf[4];
     uint64_t start = now_ms();
@@ -199,7 +205,7 @@ static void test_drop_strategy(void)
 {
     printf("Test 5: DROP strategy (discard old data)\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 1, 0, JRINGBUF_READ_SHARED);
+    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 1, 0, 0, JRINGBUF_READ_SHARED);
 
     /* 写满缓冲区 */
     uint8_t fill[TEST_CAPACITY];
@@ -245,7 +251,7 @@ static void test_multi_producer(void)
 {
     printf("Test 6: Multi-producer write\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, TEST_MAX_PRODUCERS, 1, 0, JRINGBUF_READ_SHARED);
+    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, TEST_MAX_PRODUCERS, 1, 0, 0, JRINGBUF_READ_SHARED);
 
     /* 添加 4 个生产者（包括默认的 0 号，还需添加 3 个） */
     int pids[TEST_MAX_PRODUCERS] = {0};
@@ -295,7 +301,7 @@ static void test_multi_consumer_shared(void)
     printf("Test 7: Multi-consumer shared read\n");
 
     jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, TEST_MAX_CONSUMERS,
-                                   0, JRINGBUF_READ_SHARED);
+                                   0, 0, JRINGBUF_READ_SHARED);
     /* 添加 4 个消费者 */
     int cids[TEST_MAX_CONSUMERS] = {0};
     cids[0] = 0;
@@ -348,7 +354,7 @@ static void test_multi_consumer_exclusive(void)
     printf("Test 8: Multi-consumer exclusive read\n");
 
     jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, TEST_MAX_CONSUMERS,
-                                   0, JRINGBUF_READ_EXCLUSIVE);
+                                   0, 0, JRINGBUF_READ_EXCLUSIVE);
     int cids[TEST_MAX_CONSUMERS] = {0};
     for (int i = 0; i < TEST_MAX_CONSUMERS; i++) {
         cids[i] = jringbuf_add_consumer(rb, 1); /* 从最旧数据开始 */
@@ -389,7 +395,7 @@ static void test_hold_size(void)
     printf("Test 9: hold_size history retention\n");
 
     jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 2,
-                                   TEST_HOLD_SIZE, JRINGBUF_READ_EXCLUSIVE);
+                                   TEST_HOLD_SIZE, 0, JRINGBUF_READ_EXCLUSIVE);
     int c1 = jringbuf_add_consumer(rb, 1); /* 从最旧开始 */
     test_assert(c1 >= 0, "add consumer 1 failed");
 
@@ -431,7 +437,7 @@ static void test_dynamic_del(void)
 {
     printf("Test 10: Dynamic add/del producers and consumers\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 3, 3, 0, JRINGBUF_READ_EXCLUSIVE);
+    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 3, 3, 0, 0, JRINGBUF_READ_EXCLUSIVE);
 
     int p1 = jringbuf_add_producer(rb);
     int p2 = jringbuf_add_producer(rb);
@@ -460,7 +466,7 @@ static void test_drop_data(void)
 {
     printf("Test 11: drop_data interface\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 2, 0, JRINGBUF_READ_EXCLUSIVE);
+    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 2, 0, 0, JRINGBUF_READ_EXCLUSIVE);
     int c1 = jringbuf_add_consumer(rb, 1);
     int c2 = jringbuf_add_consumer(rb, 0); /* 从 write_index 开始，无历史 */
     test_assert(c1 >= 0 && c2 >= 0, "add consumers failed");
@@ -500,7 +506,7 @@ static void test_uninit_safety(void)
 {
     printf("Test 12: Safe uninit with waiting threads\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 1, 0, JRINGBUF_READ_SHARED);
+    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 1, 0, 0, JRINGBUF_READ_SHARED);
     jthread_t reader;
     jthread_create(&reader, NULL, slow_reader, rb);
 
