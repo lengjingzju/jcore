@@ -112,6 +112,7 @@ $(eval $(call add-bin-build,jplist_test,template/test/jplist_test.c,$(LINKA),,$(
 $(eval $(call add-bin-build,jprbtree_test,template/test/jprbtree_test.c,$(LINKA),,$(OBJ_PREFIX)/$(staticlib)))
 $(eval $(call add-bin-build,jphashmap_test,template/test/jphashmap_test.c,$(LINKA),,$(OBJ_PREFIX)/$(staticlib)))
 $(eval $(call add-bin-build,jringbuf_test,test/jringbuf_test.c,$(LINKA),,$(OBJ_PREFIX)/$(staticlib)))
+$(eval $(call add-bin-build,jringdata_test,test/jringdata_test.c,$(LINKA),,$(OBJ_PREFIX)/$(staticlib)))
 
 else
 LINKA          := -l$(lib) -pthread
@@ -133,6 +134,7 @@ $(eval $(call add-bin-build,jplist_test,template/test/jplist_test.c,$(LINKB),,$(
 $(eval $(call add-bin-build,jprbtree_test,template/test/jprbtree_test.c,$(LINKB),,$(OBJ_PREFIX)/lib$(lib).so))
 $(eval $(call add-bin-build,jphashmap_test,template/test/jphashmap_test.c,$(LINKB),,$(OBJ_PREFIX)/lib$(lib).so))
 $(eval $(call add-bin-build,jringbuf_test,test/jringbuf_test.c,$(LINKA),,$(OBJ_PREFIX)/lib$(lib).so))
+$(eval $(call add-bin-build,jringdata_test,test/jringdata_test.c,$(LINKA),,$(OBJ_PREFIX)/lib$(lib).so))
 endif
 
 INSTALL_HEADERS   = common/*.h $(OSDIR)/*.h $(AHDRS)

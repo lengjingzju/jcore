@@ -146,7 +146,8 @@ JCore 封装了不同操作系统的核心接口，屏蔽了系统调用的差�
     * 文件：`common/jheap.h`, `common/jheap.c`
 
 * **循环缓冲模块**：提供线程安全的循环缓冲
-    * 文件：`common/jringbuf.h`, `commjringbuf.c`
+    * 文件：`common/jringbuf.h`, `commjringbuf.c` （只有数据区，可设置数据单元大小）
+    * 文件：`common/jringdata.h`, `commjringdata.c` （一份索引区，一份数据区）
     * 特点：
         * 支持单生产者、多生产者、单消费者、多消费者模型
         * 多消费者支持共享模式(全局)和独占模式
@@ -168,7 +169,7 @@ JCore 提供了各个模块的简单测试程序，方便开发者验证功能�
 * **测试线程池模块**：`test/jpthread_test.c`
 * **测试日志模块**：`test/jlog_client_test.c`, `test/jlog_server_test.c`
 * **测试网络模块**：`test/jsock_client_test.c`, `test/jsock_udp_test.c`
-* **测试循环缓冲模块**：`test/jringbuf_test.c`
+* **测试循环缓冲模块**：`test/jringbuf_test.c`, `test/jringdata_test.c`
 * **测试代码模板生成**：`template/test/jp*_test.c`
 
 ## jhook内存调试工具
@@ -1341,49 +1342,48 @@ graph LR
     - **误差补偿**：容忍100μs内的时间误差，减少不必要的队列调整。
     - **漂移补偿**：异常延迟时自动对齐系统时间
 
-
-## jringbuf多功能环形缓冲
+## jringbuf 多功能环形缓冲区（按元素操作）
 
 ### 概述
 
-`jringbuf` 是一个面向工业级多线程场景的环形缓冲区管理器，支持**多生产者-多消费者（MPMC）**、**可变长消息**、**共享/独占消费模式**、**历史窗口**、**多种读写策略**（阻塞/重试/丢弃/完全读写）以及**动态添加/移除生产者/消费者**。它通过互斥锁与条件变量保证线程安全，在单生产者单消费者（SPSC）场景下将数据拷贝置于锁外，性能接近无锁实现，同时为复杂业务提供了完整的流量控制与数据保留能力。
+`jringbuf` 是一个面向工业级多线程场景的环形缓冲区管理器，支持 **多生产者-多消费者（MPMC）**、**固定大小元素**、**共享/独占消费模式**、**历史窗口**、**多种读写策略**（阻塞/重试/丢弃/完全读写）以及 **动态添加/移除生产者/消费者**。它以 **元素** 为操作单位，每个元素大小由 `unit_size` 指定（字节）。所有接口的 `len`、容量、返回值均以元素个数计数，内部自动管理字节偏移，保证写入/读取总是完整的元素。通过互斥锁与条件变量保证线程安全，在单生产者单消费者（SPSC）场景下将数据拷贝置于锁外，性能接近无锁实现。
 
 #### 主要特性
 
 - **多生产/多消费**：支持任意数量的生产者和消费者（≥1），动态加入退出。
 - **两种消费模式**：
   - `JRINGBUF_READ_SHARED`：共享读指针，任一消费者读取都会推进全局读位置。
-  - `JRINGBUF_READ_EXCLUSIVE`：独立读指针，所有消费者都读过某数据后空间才释放，适合多速度消费者。
-- **历史窗口**：通过 `hold_size` 保留最近写入的历史数据，新加入的消费者可回溯消费。
+  - `JRINGBUF_READ_EXCLUSIVE`：独立读指针，所有消费者都读过某元素后空间才释放，适合多速度消费者。
+- **历史窗口**：通过 `hold_num` 保留最近写入的 **元素个数**，新加入的消费者可回溯消费。
 - **灵活的读写策略**：
   - 完整读写（`JRINGBUF_COMPLETE`）
   - 阻塞等待（`JRINGBUF_BLOCK`，支持超时）
   - 重试有限次（`JRINGBUF_RETRY`）
   - 缓冲区满时丢弃最旧数据（`JRINGBUF_DROP`）
-- **可变长消息**：支持任意长度（不超过总容量）的写入与读取。
+- **固定元素大小**：所有元素等长，配置时指定 `unit_size`，读写操作以元素为单位。
 - **线程安全停止/启动**：可安全地禁止新读写并等待所有进行中的操作完成。
 - **内存紧凑布局**：缓冲区、消费者/生产者有效性数组、消费者读索引数组均分配在同一块连续内存中（柔性数组），减少碎片。
 
-### 框架
+#### 框架
 
 ```mermaid
 graph TB
     subgraph 接口层
         A1[jringbuf_init] --> |创建| M
         A2[jringbuf_uninit] --> |销毁| M
-        A3[jringbuf_write] --> |写入| M
-        A4[jringbuf_read] --> |读取| M
+        A3[jringbuf_write] --> |写入len个元素| M
+        A4[jringbuf_read] --> |读取len个元素| M
         A5[jringbuf_add/del_producer] --> |管理| M
         A6[jringbuf_add/del_consumer] --> |管理| M
-        A7[jringbuf_drop_data] --> |丢弃| M
-        A8[jringbuf_size/capacity] --> |查询| M
+        A7[jringbuf_drop_data] --> |丢弃dropped个元素| M
+        A8[jringbuf_size/capacity] --> |查询元素个数| M
     end
 
     subgraph 核心数据结构
         M[jringbuf_t]
-        M --> B[数据缓冲区<br/>capacity字节]
+        M --> B[数据缓冲区<br/>capacity个元素 × unit_size字节]
         M --> C[消费者有效性数组<br/>max_consumers > 1]
-        M --> D[消费者读索引数组<br/>独占模式 & max_consumers > 1]
+        M --> D[消费者读索引数组（独占模式）<br/>存储元素位置]
         M --> E[生产者有效性数组<br/>max_producers > 1]
     end
 
@@ -1391,9 +1391,9 @@ graph TB
         M --> L[互斥锁]
         M --> N[not_empty条件变量]
         M --> F[not_full条件变量]
-        M --> S[写指针 write_index]
-        M --> G[全局最小读指针 min_read_index]
-        M --> H[有效数据长度 data_len]
+        M --> S[写指针 write_index（元素数）]
+        M --> G[全局最小读指针 min_read_index（元素数）]
+        M --> H[有效数据长度 data_len（元素数）]
         M --> I[惰性更新标志 min_read_stale]
         M --> J[正在读写计数 rw_count]
         M --> K[禁用标志 disable_rw]
@@ -1412,16 +1412,16 @@ graph TB
 
 #### 1. 初始化流程
 
-1. 检查参数（容量、最大生产者/消费者 ≥1）。
-2. 容量向上取整为2的幂（便于位掩码计算）。
+1. 检查参数（容量、unit_size、最大生产者/消费者 ≥1）。
+2. 容量（元素个数）向上取整为2的幂（便于位掩码计算），实际字节容量 = 对齐后容量 × unit_size。
 3. 计算各部分偏移量：
-   - 数据缓冲区（`capacity` 字节）
-   - 消费者有效性数组（`max_consumers>1` 时分配，每个 `uint8_t`）
-   - 消费者读索引数组（`max_consumers>1` 且独占模式时分配，每个 `uint32_t`）
-   - 生产者有效性数组（`max_producers>1` 时分配）
-4. 一次性分配连续内存（`jheap_malloc`），并按偏移量布局。
+   - 数据缓冲区（字节容量）
+   - 消费者有效性数组（max_consumers>1 时分配，每个 uint8_t）
+   - 消费者读索引数组（max_consumers>1 且独占模式时分配，每个 uint32_t，存储元素位置）
+   - 生产者有效性数组（max_producers>1 时分配）
+4. 一次性分配连续内存（jheap_malloc），并按偏移量布局。
 5. 初始化互斥锁、条件变量（单调时钟）。
-6. 返回 `jringbuf_t` 指针。
+6. 返回 jringbuf_t 指针。
 
 #### 2. 写入流程（`jringbuf_write`）
 
@@ -1429,26 +1429,27 @@ graph TB
 2. 若 disable_rw 为真 → 解锁并返回 -1。
 3. 检查生产者有效性（多生产者时）。
 4. 若有惰性更新标志，调用 update_min_read_index() 刷新。
-5. 计算剩余空间 space = capacity - data_len。
+5. 计算剩余元素空间 space = capacity - data_len。
 6. 若 space >= len → 跳转到写入。
 7. 否则根据策略处理：
    - 阻塞（BLOCK）：等待 not_full 条件变量（支持超时）。
    - 重试（RETRY）：解锁后 yield，重新尝试（循环）。
-   - 丢弃（DROP）：按 dropped 参数至少丢弃 drop_amount 字节旧数据，
+   - 丢弃（DROP）：按 dropped 参数至少丢弃 drop_amount 个旧元素，
      更新所有消费者索引和 min_read_index，重新计算 space。
 8. 若最终空间仍不足 → 解锁返回 -1。
-9. 计算环形写位置 wpos = write_index & (capacity-1)，分两段 memcpy。
+9. 计算环形写位置 wpos = write_index & (capacity-1)，字节偏移 = wpos * unit_size。
+   分两段 memcpy（总字节 = to_write * unit_size）。
    （若为单生产者，memcpy 在锁外执行以减少临界区）
-10. 更新 write_index 和 data_len。
-11. 广播 not_empty 条件变量。
-12. 减少 rw_count，解锁，返回写入字节数。
+10. 更新 write_index += to_write，data_len += to_write。
+11. 广播 not_empty 条件变量（若 data_len >= wake_num）。
+12. 减少 rw_count，解锁，返回写入元素个数。
 
 #### 3. 读取流程（`jringbuf_read`）
 
 1. 加锁，增加 rw_count。
 2. 若 disable_rw 为真 → 解锁返回 -1。
 3. 检查消费者有效性（多消费者时）。
-4. 确定该消费者的可读数据量：
+4. 确定该消费者的可读元素数：
    - 单消费者或共享模式：avail = data_len
    - 独占模式：avail = write_index - cons_idx[consumer_id]
 5. 若 avail >= need（need = 完全读时 len，否则 1）→ 跳转读取。
@@ -1457,38 +1458,35 @@ graph TB
    - 重试（RETRY）：解锁 yield 后重试。
 7. 若仍不足 → 解锁返回 -1。
 8. 确定读指针 c_read（根据模式取自 min_read_index 或消费者私有索引）。
-9. 计算环形读位置，分两段 memcpy。若为单消费者，则将 min_read_lock 置 1，
-   解锁后再拷贝以减少锁持有时间（拷贝完重新加锁）。
+9. 计算环形读位置 rpos = c_read & (capacity-1)，字节偏移 = rpos * unit_size。
+   分两段 memcpy（总字节 = to_read * unit_size）。
+   若为单消费者，则将 min_read_lock 置 1，解锁后再拷贝以减少锁持有时间。
 10. 更新读位置：
     - 共享/单消费者：min_read_index += to_read，data_len -= to_read。
     - 独占模式：消费者索引增加 to_read；若该消费者之前是最慢的，
       则设置 min_read_stale = 1（惰性更新）。
 11. 广播 not_full 条件变量。
-12. 减少 rw_count，解锁，返回读取字节数。
+12. 减少 rw_count，解锁，返回读取元素个数。
 
 #### 4. 生产者/消费者管理
 
-- **添加生产者**（`jringbuf_add_producer`）：
-  在多生产者模式下，遍历有效性数组找到首个 `0` 位置，置 `1` 并增加计数，返回 ID。单生产者直接返回 0。
-- **删除生产者**（`jringbuf_del_producer`）：
-  将对应位置置 0，减少计数；若 `producer_id=-1` 则全部清空。广播 `not_full` 唤醒等待写入的线程。
-- **添加消费者**（`jringbuf_add_consumer`）：
-  类似生产者，初始化读位置（若独占模式，可选择从 `min_read_index` 或 `write_index` 开始）。
-- **删除消费者**（`jringbuf_del_consumer`）：
-  清空有效性位，减少计数，并调用 `update_min_read_index()` 立即重新计算全局最小读指针，可能释放空间给写入端。
+- **添加生产者**（`jringbuf_add_producer`）：在多生产者模式下，遍历有效性数组找到首个 0 位置，置 1 并增加计数，返回 ID。单生产者直接返回 0。
+- **删除生产者**（`jringbuf_del_producer`）：将对应位置置 0，减少计数；若 producer_id=-1 则全部清空。广播 not_full 唤醒等待写入的线程。
+- **添加消费者**（`jringbuf_add_consumer`）：类似生产者，初始化读位置（若独占模式，可选择从 min_read_index 或 write_index 开始）。
+- **删除消费者**（`jringbuf_del_consumer`）：清空有效性位，减少计数，并调用 update_min_read_index() 立即重新计算全局最小读指针，可能释放空间给写入端。
 
 #### 5. 丢弃数据（`jringbuf_drop_data`）
 
-- 用于强制跳过指定消费者的部分或全部未读数据，或跳过所有消费者的数据。
-- 在独占模式下，会逐个更新消费者索引，并调用 `update_min_read_index()`。
-- 在共享/单消费者模式下，直接推进 `min_read_index`。
-- 操作期间检查 `min_read_lock`（单消费者拷贝锁外时设置），避免与正在进行的读取冲突。
+- 用于强制跳过指定消费者的部分或全部未读元素，或跳过所有消费者的数据。
+- 在独占模式下，会逐个更新消费者索引，并调用 update_min_read_index()。
+- 在共享/单消费者模式下，直接推进 min_read_index。
+- 操作期间检查 min_read_lock（单消费者拷贝锁外时设置），避免与正在进行的读取冲突。
 
 #### 6. 最小读指针更新（`update_min_read_index`）
 
 - 在独占模式下，遍历所有活跃消费者，找出最小的读索引（即最慢的消费者）。
-- 若 `hold_size > 0`，则将最小值钳位到 `write_index - hold_size` 以上，保证新消费者可读一定历史。
-- 更新 `min_read_index`、`data_len`，清除惰性标志。
+- 若 hold_num > 0，则将最小值钳位到 `write_index - hold_num` 以上（但不得低于 old_min），保证新消费者可读一定历史（元素个数）。
+- 更新 min_read_index、data_len，清除惰性标志。
 
 ### 核心模块
 
@@ -1496,33 +1494,33 @@ graph TB
 
 ```c
 struct jringbuf {
-    uint32_t        capacity;           // 缓冲区容量，2的幂
     uint32_t        max_producers;      // 最大生产者数量
     uint32_t        cur_producers;      // 当前生产者数量
     uint32_t        max_consumers;      // 最大消费者数量
     uint32_t        cur_consumers;      // 当前消费者数量
-    uint32_t        hold_size;          // 历史窗口大小（字节）
-    uint32_t        wake_size;          // 唤醒窗口大小（字节）
+    uint32_t        hold_num;           // 历史窗口大小（元素个数）
+    uint32_t        wake_num;           // 唤醒窗口大小（元素个数）
     enum jringbuf_read_mode read_mode;  // JRINGBUF_READ_SHARED / EXCLUSIVE
     uint8_t         disable_rw;         // 读写禁止标志
     uint8_t         min_read_stale;     // 惰性更新标志
     uint8_t         min_read_lock;      // 单消费者拷贝时锁定标志
     uint32_t        rw_count;           // 正在读写的线程数
 
-    uint32_t        write_index;        // 绝对写位置（单调递增，自然溢出）
-    uint32_t        data_len;           // 有效数据长度
-    uint32_t        min_read_index;     // 全局最小读位置
+    uint32_t        unit_size;          // 每个元素大小（字节）
+    uint32_t        capacity;           // 缓冲区元素总个数（2的幂）
+    uint32_t        data_len;           // 有效元素个数
+    uint32_t        write_index;        // 绝对写位置（元素数），单调递增，自然溢出
+    uint32_t        min_read_index;     // 全局最小读位置（元素数）
 
     jthread_mutex_t mutex;              // 互斥锁
     jthread_cond_t  not_empty;          // 数据可用条件变量
     jthread_cond_t  not_full;           // 空间可用条件变量
 
-    uint32_t        buf_offset;         // 数据缓冲区偏移
+    uint32_t        buf_offset;         // 数据缓冲区偏移（字节）
     uint32_t        consumer_active_offset; // 消费者有效性数组偏移
-    uint32_t        consumer_index_offset;  // 消费者读索引数组偏移
+    uint32_t        consumer_index_offset;  // 消费者读索引数组偏移（元素位置）
     uint32_t        producer_active_offset; // 生产者有效性数组偏移
-    uint32_t        total_size;         // 总大小
-
+    uint32_t        total_size;         // 总分配字节数
     uint8_t         data[];             // 柔性数组起始
 };
 ```
@@ -1554,44 +1552,285 @@ enum jringbuf_read_mode {
 };
 ```
 
+#### 配置参数 `jringbuf_cfg_t`
+
+```c
+typedef struct jringbuf_cfg {
+    uint32_t capacity;          // 缓冲区元素个数，内部向上对齐到2的幂
+    uint32_t unit_size;         // 单个元素大小（字节），必须 > 0
+    uint32_t max_producers;     // 最大生产者数量
+    uint32_t max_consumers;     // 最大消费者数量
+    uint32_t hold_num;          // 历史窗口大小（元素个数）
+    uint32_t wake_num;          // 唤醒阈值（元素个数）
+    enum jringbuf_read_mode read_mode;
+} jringbuf_cfg_t;
+```
+
 ### 性能设计
 
-#### 1. 锁外内存拷贝
+1. **锁外内存拷贝**  
+   - 单生产者时，写入 memcpy 在解锁后执行；单消费者时，读取 memcpy 也释放锁后执行，使 SPSC 场景下的锁仅保护索引更新，降低延迟。
 
-- 在单生产者（`max_producers == 1`）时，写入端的 `memcpy` 在**解锁后**执行；同样，单消费者时读取端的 `memcpy` 也释放锁后执行。这使 SPSC 场景下的锁仅保护索引更新，拷贝不占用锁，大幅降低延迟。
+2. **惰性更新（Lazy Update）**  
+   - 独占模式下，非最慢消费者推进时不立即重算全局 min_read_index，只设 stale 标志，在下次写入或查询时一次性遍历，减少开销。
 
-#### 2. 惰性更新（Lazy Update）
+3. **条件变量与精确唤醒**  
+   - 使用 not_empty 和 not_full 两个条件变量，避免无效广播，仅在数据或空间条件满足时唤醒相应线程。
 
-- 独占模式下，当某个消费者推进后如果它**不是当前最慢的消费者**，则不会立即重新计算全局 `min_read_index`，而是设置 `min_read_stale = 1`。
-- 仅在下次写入或查询全局大小时才触发 `update_min_read_index()`，减少遍历所有消费者的开销。
+4. **内存紧凑布局**  
+   - 所有结构、缓冲、辅助数组在一处连续内存，提高缓存局部性，减少碎片。
 
-#### 3. 条件变量与精确唤醒
+5. **环形寻址优化**  
+   - 容量为 2 的幂，通过位掩码 & (capacity-1) 快速计算环内位置；元素字节偏移 = 环内索引 × unit_size。
 
-- 使用两个条件变量：`not_empty`（数据可读）和 `not_full`（空间可写），避免无效广播。
-- 写入完成后广播 `not_empty`，读取完成后广播 `not_full`，精确唤醒等待相应资源的线程。
-- 支持生产者写入后buf中的数据大于等于设置值时唤醒消费者
+6. **正在读写计数与安全停止**  
+   - stop 时设置 disable_rw，循环等待 rw_count 降为 0，确保无活跃操作后才返回。
 
-#### 4. 内存紧凑布局
+7. **避免优先级反转**  
+   - 丢弃逻辑中检查 min_read_lock（单消费者拷贝时置位），若发现则让出 CPU 重试，防止写操作长时间阻塞读。
 
-- 所有管理结构、数据缓冲区、辅助数组均在一处连续内存（`jheap_malloc`），提高缓存局部性，减少内存碎片。
-- 动态分配时按需分配辅助数组（只有 `max_consumers>1` 或 `max_producers>1` 时才有对应数组）。
+8. **动态成员管理**  
+   - 添加/删除操作只改有效性数组和计数，不进行运行时内存分配，所有槽位预先分配。
 
-#### 5. 环形寻址优化
 
-- 容量强制为 2 的幂，通过 `& (capacity - 1)` 代替取模运算，提高地址计算效率。
+## jringdata 带索引的数据环形缓冲区
 
-#### 6. 正在读写计数（`rw_count`）与安全停止
+### 概述
 
-- `jringbuf_stop` 会设置 `disable_rw`，并循环等待 `rw_count` 降为 0，确保没有线程在临界区内后才返回，避免悬空访问。
+`jringdata` 是 `jringbuf` 的扩展，专为 **索引+数据分离** 的变长消息场景设计。它将 **索引（metadata）** 和 **裸数据（payload）** 分别存储在两个独立环形缓冲区中，通过索引记录每条消息的长度，实现 **可变长数据** 的高效管理。支持 **多生产者-多消费者（MPMC）**、**共享/独占消费模式**、**历史窗口**、**多种读写策略**（阻塞/重试/丢弃/完全读写）、**动态添加/移除生产者/消费者**，以及 **连续/分散（gather/scatter）读写**。所有索引操作以“索引个数”为单位，数据操作以“字节”为单位，内部自动维护索引与数据之间的一一对应关系。通过互斥锁与条件变量保证线程安全，同样在单生产者/单消费者场景下优化锁外拷贝。
 
-#### 7. 避免优先级反转
+#### 主要特性
 
-- 写操作中的丢弃逻辑会检查 `min_read_lock`（单消费者拷贝时设置），若发现正在拷贝则主动让出 CPU 重试，防止写操作长时间阻塞读操作。
+- **索引与数据分离**：索引缓冲区存储每个消息的元信息（如长度），数据缓冲区存储实际载荷，支持任意长度消息。
+- **灵活的长度获取**：通过用户提供的 `get_size` 回调从索引中提取数据长度，默认将索引前4字节视为 uint32_t 长度。
+- **两种消费模式**：共享读指针（`JRINGDATA_READ_SHARED`）和独立读指针（`JRINGDATA_READ_EXCLUSIVE`）。
+- **历史窗口**：通过 `hold_num` 保留最近写入的 **索引个数**，新消费者可回溯历史。
+- **读写策略**：完全读写（COMPLETE）、阻塞（BLOCK）、重试（RETRY）、丢弃旧数据（DROP）。
+- **连续与分散操作**：提供 `write/read`（连续缓冲区）和 `writev/readv`（指针数组）两种接口。
+- **线程安全停止/启动**：与 `jringbuf` 一致。
+- **内存紧凑布局**：索引缓冲区、数据缓冲区、消费者读索引/读数据数组、有效性数组全部连续分配。
 
-#### 8. 动态成员管理
+#### 框架
 
-- 生产者/消费者添加/删除操作仅修改有效性数组和计数值，不动态分配内存（内存池已在初始化时分配最大数量的槽位），避免运行时内存分配开销。
+```mermaid
+graph TB
+    subgraph 接口层
+        A1[jringdata_init] --> |创建| M
+        A2[jringdata_uninit] --> |销毁| M
+        A3[jringdata_write/writev] --> |写入num个索引及数据| M
+        A4[jringdata_read/readv] --> |读取num个索引及数据| M
+        A5[jringdata_add/del_producer] --> |管理| M
+        A6[jringdata_add/del_consumer] --> |管理| M
+        A7[jringdata_drop_data] --> |丢弃dropped个索引| M
+        A8[jringdata_size/capacity] --> |查询索引/数据大小| M
+    end
 
+    subgraph 核心数据结构
+        M[jringdata_t]
+        M --> B1[索引缓冲区<br/>idx_num个索引 × idx_size字节]
+        M --> B2[数据缓冲区<br/>capacity字节]
+        M --> C[消费者有效性数组]
+        M --> D1[消费者索引读位置数组（独占模式）]
+        M --> D2[消费者数据读位置数组（独占模式）]
+        M --> E[生产者有效性数组]
+    end
+
+    subgraph 同步与状态
+        M --> L[互斥锁]
+        M --> N[not_empty条件变量]
+        M --> F[not_full条件变量]
+        M --> S1[索引写指针 idx_write_index]
+        M --> S2[数据写指针 data_write_index]
+        M --> G1[索引全局最小读指针 idx_min_read_index]
+        M --> G2[数据全局最小读指针 data_min_read_index]
+        M --> H1[有效索引个数 idx_data_len]
+        M --> H2[有效数据字节数 data_data_len]
+        M --> I[惰性更新标志 min_read_stale]
+        M --> J[正在读写计数 rw_count]
+        M --> K[禁用标志 disable_rw]
+        M --> Fn[get_size回调函数]
+    end
+
+    subgraph 逻辑流程
+        L --> K
+        N --> G1
+        F --> S1
+        I --> G1
+        J --> K
+        Fn --> B1
+    end
+```
+
+### 关键流程
+
+#### 1. 初始化流程
+
+1. 检查参数（idx_num, idx_size, capacity, max_producers, max_consumers ≥1）。
+2. `idx_num` 和 `capacity` 分别向上对齐为 2 的幂。
+3. 计算各部分偏移量：
+   - 索引缓冲区（idx_num × idx_size 字节）
+   - 数据缓冲区（capacity 字节）
+   - 消费者索引读位置数组（独占模式时，max_consumers × uint32_t）
+   - 消费者数据读位置数组（独占模式时，max_consumers × uint32_t）
+   - 消费者有效性数组（max_consumers>1 时）
+   - 生产者有效性数组（max_producers>1 时）
+4. 一次性分配连续内存，布局。
+5. 初始化互斥锁、条件变量。
+6. 设置 `get_size` 回调（若未提供则使用默认：取索引前4字节）。
+
+#### 2. 写入流程（`write` 和 `writev` 公共逻辑）
+
+1. 加锁，增加 rw_count，检查 disable_rw。
+2. 校验生产者有效性。
+3. 若 `min_read_stale` 为真，调用 `update_min_read_index()`。
+4. 计算索引剩余空间 `idx_space = idx_total - idx_data_len`，数据剩余空间 `data_space = data_total - data_data_len`。
+5. 根据 `complete` 模式确定最小需求：
+   - 完全写：需要 `num` 个索引和总数据 `len` 字节。
+   - 非完全写：只需至少 1 个索引及其对应数据。
+6. 若空间不足，根据策略等待（BLOCK）或重试（RETRY），若允许 DROP 则尝试丢弃旧数据（调用 `drop_old_data`）。
+7. 丢弃成功后重新计算可写入量（`calc_write_size`），可能小于请求数。
+8. 写入数据：
+   - 计算索引环形写位置 `idx_wpos = idx_write_index & idx_mask`，分两段 memcpy 写入索引。
+   - 数据部分：依次写入每个索引对应的数据块（数据长度由 `get_size` 回调获取），分两段 memcpy。
+   - 对于离散模式（writev），分别从指针数组取值。
+   - 若为单生产者，拷贝在锁外执行。
+9. 更新 `idx_write_index`、`data_write_index`、`idx_data_len`、`data_data_len`。
+10. 若 `idx_data_len >= wake_num`，广播 not_empty。
+11. 解锁，返回写入索引个数。
+
+#### 3. 读取流程（`read` 和 `readv` 公共逻辑）
+
+1. 加锁，增加 rw_count，检查 disable_rw。
+2. 校验消费者有效性。
+3. 确定消费者的索引读位置 `c_idx` 和数据读位置 `c_data`（共享模式取全局，独占模式取私有）。
+4. 计算可读索引数 `avail_idx` 和对应数据量 `avail_data`。
+5. 根据 `complete` 模式确定最小需求（完全读需 `num` 个索引，否则需至少 1 个）。
+6. 若可用索引不足，按策略等待或重试；若用户提供的 data 缓冲区长度不足以容纳任一完整索引的数据，则报错。
+7. 调用 `calc_read_size` 计算实际可读索引数 `read_num` 和对应数据量 `read_data`。
+8. 拷贝数据：
+   - 索引：从索引缓冲区的 `c_idx` 位置连续读取 `read_num` 个索引到用户缓冲区。
+   - 数据：按顺序读取每个索引对应的数据块，写入用户数据缓冲区（连续模式）或各指针指向的缓冲区（分散模式）。
+   - 若为单消费者，拷贝在锁外执行（设置 min_read_lock）。
+9. 更新读位置：
+   - 共享模式：移动全局 `idx_min_read_index` 和 `data_min_read_index`，减少 `idx_data_len` 和 `data_data_len`。
+   - 独占模式：更新该消费者的私有读位置，若该消费者为最慢则置 `min_read_stale=1`。
+10. 广播 not_full。
+11. 返回实际读取索引个数。
+
+#### 4. 生产者/消费者管理
+
+与 `jringbuf` 类似，但添加消费者时需同时初始化索引和数据读位置（独占模式）。
+
+#### 5. 丢弃数据（`drop_data`）
+
+- 可丢弃指定消费者或所有消费者的部分/全部未读索引。
+- 在独占模式下，逐个推进消费者读位置（索引和数据），然后更新全局 `min_read_index`。
+- 在共享/单消费者模式下，直接推进全局读位置。
+- 支持指定丢弃索引个数（`dropped`），0 表示全部丢弃。
+
+#### 6. 最小读指针更新（`update_min_read_index`）
+
+- 遍历所有活跃消费者，取最小的索引读位置作为候选 `min_idx`，同时记录对应的数据读位置。
+- 若 `hold_num > 0`，则 `min_idx` 不得小于 `idx_write_index - hold_num`（保留历史索引）。
+- 同时更新 `idx_min_read_index`、`idx_data_len`、`data_min_read_index`、`data_data_len`。
+- 清除惰性标志。
+
+#### 7. 数据长度计算辅助函数
+
+- `calc_data_len_for_idx_range`：根据起始索引绝对位置和数量，遍历每个索引调用 `get_size` 累加得到数据总字节数。
+- 用于丢弃、更新最小读指针等场景。
+
+### 核心模块
+
+#### 数据结构 `jringdata_t`（柔性数组布局）
+
+```c
+struct jringdata {
+    // 成员管理
+    uint32_t        max_producers;
+    uint32_t        cur_producers;
+    uint32_t        max_consumers;
+    uint32_t        cur_consumers;
+    uint32_t        hold_num;           // 历史索引保留数
+    uint32_t        wake_num;           // 唤醒阈值（索引个数）
+    enum jringdata_read_mode read_mode;
+    uint8_t         disable_rw;
+    uint8_t         min_read_stale;
+    uint8_t         min_read_lock;
+    uint32_t        rw_count;
+    uint32_t        total_size;         // 总分配字节数
+    uint32_t        producer_offset;
+    uint32_t        consumer_offset;
+    uint32_t (*get_size)(const void *idx);  // 长度回调
+
+    // 索引上下文
+    struct jringdata_ctx {
+        uint32_t total_len;      // 索引总个数（2的幂）
+        uint32_t unit_size;      // 索引结构体大小
+        uint32_t data_len;       // 有效索引个数
+        uint32_t write_index;    // 绝对写位置（索引序号）
+        uint32_t min_read_index; // 全局最小读位置（索引序号）
+        uint32_t buf_offset;     // 索引缓冲区偏移
+        uint32_t read_index_offset; // 消费者读索引数组偏移
+    } idx_ctx;
+
+    // 数据上下文（类似，但 data 的 unit_size 恒为1）
+    struct jringdata_ctx {
+        uint32_t total_len;      // 数据总字节数（2的幂）
+        uint32_t unit_size;      // 恒为1
+        uint32_t data_len;       // 有效数据字节数
+        uint32_t write_index;    // 数据写位置（字节）
+        uint32_t min_read_index; // 数据最小读位置（字节）
+        uint32_t buf_offset;     // 数据缓冲区偏移
+        uint32_t read_index_offset; // 消费者读数据数组偏移
+    } data_ctx;
+
+    jthread_mutex_t mutex;
+    jthread_cond_t  not_empty;
+    jthread_cond_t  not_full;
+
+    uint8_t         data[];      // 柔性数组（索引、数据、数组等连续存放）
+};
+```
+
+#### 关键内部宏
+
+- `JRD_IDX_BUF(rd)`：索引缓冲区起始。
+- `JRD_DATA_BUF(rd)`：数据缓冲区起始。
+- `JRD_RIDX_ARR(rd)`：消费者索引读位置数组（独占模式）。
+- `JRD_RDATA_ARR(rd)`：消费者数据读位置数组（独占模式）。
+- `JRD_PROD_ACT(rd)`、`JRD_CONS_ACT(rd)`：有效数组。
+
+#### 策略枚举 `jringdata_strategy`
+
+与 `jringbuf_strategy` 相同，但 DROP 作用于索引丢弃。
+
+#### 配置参数 `jringdata_cfg_t`
+
+```c
+typedef struct jringdata_cfg {
+    uint32_t idx_num;           // 索引个数，对齐到2的幂
+    uint32_t idx_size;          // 每个索引大小（字节）
+    uint32_t capacity;          // 数据缓冲区容量（字节），对齐到2的幂
+    uint32_t max_producers;
+    uint32_t max_consumers;
+    uint32_t hold_num;          // 历史保留索引数
+    uint32_t wake_num;          // 唤醒阈值（索引数）
+    enum jringdata_read_mode read_mode;
+    uint32_t (*get_size)(const void *idx); // 长度提取回调
+} jringdata_cfg_t;
+```
+
+### 性能设计
+
+除继承 `jringbuf` 的所有性能优化外，`jringdata` 额外具备：
+
+1. **双缓冲区分离**：索引和数据独立环形，索引移动频繁，数据拷贝较大，分离后减少干扰。
+2. **用户自定义长度提取**：`get_size` 回调允许用户自定义索引格式，无需额外解析。
+3. **惰性更新更精细**：独占模式下，仅当消费者读位置与全局最小重合时才触发重新计算。
+4. **批量计算数据长度**：通过 `calc_data_len_for_idx_range` 一次遍历多个索引累计长度，避免反复调用。
+5. **分散读写支持**：`writev/readv` 允许零拷贝收集/分散，减少内存复制次数。
+6. **内存布局紧凑**：索引、数据、辅助数组连续，提高缓存命中率。
 ## 联系方式
 
 * Phone: +86 18368887550

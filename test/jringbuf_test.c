@@ -45,24 +45,24 @@ static void test_siso_basic(void)
 {
     printf("Test 1: Single Producer Single Consumer basic read/write\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 1, 0, 0, JRINGBUF_READ_SHARED);
+    jringbuf_t *rb = jringbuf_init1(TEST_CAPACITY, 1, 1, 0, 0, JRINGBUF_READ_SHARED);
     test_assert(rb != NULL, "init failed");
 
     /* 写入 10 字节 */
     uint8_t wdata[10] = {0,1,2,3,4,5,6,7,8,9};
-    int ret = jringbuf_write(rb, 0, wdata, 10, 0, 0, 0);
+    int ret = jringbuf_write(rb, 0, wdata, 10, 0, 0, NULL);
     test_assert(ret == 10, "write failed");
     test_assert(jringbuf_size(rb, -1) == 10, "size mismatch");
 
     /* 读取 5 字节 */
     uint8_t rbuf[10] = {0};
-    ret = jringbuf_read(rb, 0, rbuf, 5, 0, 0);
+    ret = jringbuf_read(rb, 0, rbuf, 5, NULL, 0, 0);
     test_assert(ret == 5, "read failed");
     test_assert(memcmp(rbuf, wdata, 5) == 0, "data mismatch");
     test_assert(jringbuf_size(rb, -1) == 5, "size after partial read");
 
     /* 读取剩余 5 字节 */
-    ret = jringbuf_read(rb, 0, rbuf + 5, 5, 0, 0);
+    ret = jringbuf_read(rb, 0, rbuf + 5, 5, NULL, 0, 0);
     test_assert(ret == 5, "read rest failed");
     test_assert(memcmp(rbuf + 5, wdata + 5, 5) == 0, "rest data mismatch");
     test_assert(jringbuf_size(rb, -1) == 0, "should be empty");
@@ -78,35 +78,35 @@ static void test_complete_strategy(void)
 {
     printf("Test 2: COMPLETE read/write strategy\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 1, 0, 0, JRINGBUF_READ_SHARED);
+    jringbuf_t *rb = jringbuf_init1(TEST_CAPACITY, 1, 1, 0, 0, JRINGBUF_READ_SHARED);
 
     /* 先写入 30 字节，使缓冲区有足够数据 */
     uint8_t wdata[30];
     memset(wdata, 0xAB, sizeof(wdata));
-    int ret = jringbuf_write(rb, 0, wdata, 30, 0, 0, 0);
+    int ret = jringbuf_write(rb, 0, wdata, 30, 0, 0, NULL);
     test_assert(ret == 30, "write failed");
 
     /* 完全读 40 字节，数据不足，应返回 -1 */
     uint8_t rbuf[40];
-    ret = jringbuf_read(rb, 0, rbuf, 40, JRINGBUF_COMPLETE, 0);
+    ret = jringbuf_read(rb, 0, rbuf, 40, NULL, JRINGBUF_COMPLETE, 0);
     test_assert(ret == -1, "complete read should fail");
     test_assert(jringbuf_size(rb, -1) == 30, "data should remain");
 
     /* 完全读 30 字节，应该成功 */
-    ret = jringbuf_read(rb, 0, rbuf, 30, JRINGBUF_COMPLETE, 0);
+    ret = jringbuf_read(rb, 0, rbuf, 30, NULL, JRINGBUF_COMPLETE, 0);
     test_assert(ret == 30, "complete read should succeed");
     test_assert(jringbuf_size(rb, -1) == 0, "should be empty");
 
     /* 测试完全写：缓冲区满时完全写失败 */
     uint8_t fill[TEST_CAPACITY];
     memset(fill, 0xCD, sizeof(fill));
-    ret = jringbuf_write(rb, 0, fill, TEST_CAPACITY, 0, 0, 0);
+    ret = jringbuf_write(rb, 0, fill, TEST_CAPACITY, 0, 0, NULL);
     test_assert(ret == TEST_CAPACITY, "fill write failed");
     test_assert(jringbuf_size(rb, -1) == TEST_CAPACITY, "buffer should be full");
 
     /* 完全写 1 字节，应失败 */
     uint8_t one = 0xFF;
-    ret = jringbuf_write(rb, 0, &one, 1, JRINGBUF_COMPLETE, 0, 0);
+    ret = jringbuf_write(rb, 0, &one, 1, JRINGBUF_COMPLETE, 0, NULL);
     test_assert(ret == -1, "complete write should fail when full");
 
     jringbuf_uninit(rb);
@@ -127,11 +127,11 @@ static jthread_ret_t producer_block(void *arg) {
     /* 延迟 20ms 再写入，让读者先进去等待 */
     jthread_msleep(20);
     uint8_t data[4] = {1,2,3,4};
-    int ret = jringbuf_write(targ->rb, targ->id, data, 4, 0, 0, 0);
+    int ret = jringbuf_write(targ->rb, targ->id, data, 4, 0, 0, NULL);
     test_assert(ret == 4, "producer write failed");
     /* 延迟 30ms 再写入，buf中数据达到指定值才唤醒消费者 */
     jthread_msleep(30);
-    ret = jringbuf_write(targ->rb, targ->id, data, 4, 0, 0, 0);
+    ret = jringbuf_write(targ->rb, targ->id, data, 4, 0, 0, NULL);
     test_assert(ret == 4, "producer write failed");
     return NULL;
 }
@@ -140,7 +140,7 @@ static jthread_ret_t consumer_block(void *arg) {
     thread_arg_t *targ = (thread_arg_t*)arg;
     uint8_t rbuf[4];
     uint64_t start = now_ms();
-    int ret = jringbuf_read(targ->rb, targ->id, rbuf, 4,
+    int ret = jringbuf_read(targ->rb, targ->id, rbuf, 4, NULL,
                             JRINGBUF_BLOCK, -1); /* 无限等待 */
     uint64_t elapsed = now_ms() - start;
     test_assert(ret == 4, "consumer read failed");
@@ -152,7 +152,7 @@ static void test_block_strategy(void)
 {
     printf("Test 3: BLOCK strategy\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 2, 2, 0, 8, // 生产者最少8B数据才唤醒消费者
+    jringbuf_t *rb = jringbuf_init1(TEST_CAPACITY, 2, 2, 0, 8, // 生产者最少8B数据才唤醒消费者
                                    JRINGBUF_READ_SHARED);
 
     /* 添加一个消费者 */
@@ -183,12 +183,12 @@ static void test_retry_strategy(void)
 {
     printf("Test 4: RETRY strategy\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 1, 0, 0, JRINGBUF_READ_SHARED);
+    jringbuf_t *rb = jringbuf_init1(TEST_CAPACITY, 1, 1, 0, 0, JRINGBUF_READ_SHARED);
 
     uint8_t rbuf[4];
     uint64_t start = now_ms();
     /* 尝试重试 1000000 次，缓冲区空，应失败 */
-    int ret = jringbuf_read(rb, 0, rbuf, 4,
+    int ret = jringbuf_read(rb, 0, rbuf, 4, NULL,
                             JRINGBUF_RETRY, 1000000);
     uint64_t elapsed = now_ms() - start;
     test_assert(ret == -1, "retry read should fail");
@@ -205,31 +205,43 @@ static void test_drop_strategy(void)
 {
     printf("Test 5: DROP strategy (discard old data)\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 1, 0, 0, JRINGBUF_READ_SHARED);
+    jringbuf_t *rb = jringbuf_init1(TEST_CAPACITY, 1, 1, 0, 0, JRINGBUF_READ_SHARED);
 
     /* 写满缓冲区 */
     uint8_t fill[TEST_CAPACITY];
     memset(fill, 0x11, TEST_CAPACITY);
-    int ret = jringbuf_write(rb, 0, fill, TEST_CAPACITY, 0, 0, 0);
+    int ret = jringbuf_write(rb, 0, fill, TEST_CAPACITY, 0, 0, NULL);
     test_assert(ret == TEST_CAPACITY, "fill failed");
     test_assert(jringbuf_size(rb, -1) == TEST_CAPACITY, "size wrong");
 
     /* 再写入 10 字节，使用 DROP 策略丢弃旧数据 */
     uint8_t newdata[10];
     memset(newdata, 0x22, 10);
-    ret = jringbuf_write(rb, 0, newdata, 10, JRINGBUF_DROP, 0, 0); /* dropped=0 自动计算 */
+    ret = jringbuf_write(rb, 0, newdata, 10, JRINGBUF_DROP, 0, NULL); /* dropped=0 自动计算 */
     test_assert(ret == 10, "drop write failed");
     /* 由于丢弃了 10 字节旧数据，数据长度仍为 capacity */
-    test_assert(jringbuf_size(rb, -1) == TEST_CAPACITY, "size after drop");
+    test_assert(jringbuf_size(rb, -1) == TEST_CAPACITY, "wrong size after drop");
 
     /* 验证最前面的 10 字节被丢弃，现在最旧的是 0x11 从 offset 10 开始 */
     uint8_t rbuf[TEST_CAPACITY];
-    ret = jringbuf_read(rb, 0, rbuf, TEST_CAPACITY, 0, 0);
+    ret = jringbuf_read(rb, 0, rbuf, TEST_CAPACITY, NULL, 0, 0);
     test_assert(ret == TEST_CAPACITY, "read all");
     /* 前 TEST_CAPACITY - 10 字节应为 0x11 */
     test_assert(memcmp(rbuf, fill + 10, TEST_CAPACITY - 10) == 0, "old data mismatch");
     /* 最后 10 字节应为 0x22 */
     test_assert(memcmp(rbuf + TEST_CAPACITY - 10, newdata, 10) == 0, "new data mismatch");
+
+    /* 再次全部写入 */
+    ret = jringbuf_write(rb, 0, fill, TEST_CAPACITY, 0, 0, NULL);
+    test_assert(ret == TEST_CAPACITY, "fill failed");
+
+    /* 测试最少丢一半数据 */
+    uint32_t dropped = TEST_CAPACITY / 2;
+    ret = jringbuf_write(rb, 0, newdata, 10, JRINGBUF_DROP, 0, &dropped);
+    test_assert(ret == 10, "drop write failed");
+    test_assert(dropped == TEST_CAPACITY / 2, "drop number wrong");
+    /* 数据数为 TEST_IDX_NUM / 2 + 10，写入10个新数据，最少丢一半数据） */
+    test_assert(jringbuf_size(rb, -1) == TEST_CAPACITY / 2 + 10, "wrong size after drop");
 
     jringbuf_uninit(rb);
     printf("Test 5 PASSED\n\n");
@@ -242,7 +254,7 @@ static jthread_ret_t multi_producer(void *arg) {
     thread_arg_t *targ = (thread_arg_t*)arg;
     uint8_t data[4];
     memset(data, (uint8_t)targ->id, 4);
-    int ret = jringbuf_write(targ->rb, targ->id, data, 4, 0, 0, 0);
+    int ret = jringbuf_write(targ->rb, targ->id, data, 4, 0, 0, NULL);
     test_assert(ret == 4, "multi producer write failed");
     return NULL;
 }
@@ -251,7 +263,7 @@ static void test_multi_producer(void)
 {
     printf("Test 6: Multi-producer write\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, TEST_MAX_PRODUCERS, 1, 0, 0, JRINGBUF_READ_SHARED);
+    jringbuf_t *rb = jringbuf_init1(TEST_CAPACITY, TEST_MAX_PRODUCERS, 1, 0, 0, JRINGBUF_READ_SHARED);
 
     /* 添加 4 个生产者（包括默认的 0 号，还需添加 3 个） */
     int pids[TEST_MAX_PRODUCERS] = {0};
@@ -278,7 +290,7 @@ static void test_multi_producer(void)
 
     /* 读取并简单验证 */
     uint8_t rbuf[16];
-    int ret = jringbuf_read(rb, 0, rbuf, 16, JRINGBUF_COMPLETE, 0);
+    int ret = jringbuf_read(rb, 0, rbuf, 16, NULL, JRINGBUF_COMPLETE, 0);
     test_assert(ret == 16, "read all failed");
 
     jringbuf_uninit(rb);
@@ -291,7 +303,7 @@ static void test_multi_producer(void)
 static jthread_ret_t shared_consumer(void *arg) {
     thread_arg_t *targ = (thread_arg_t*)arg;
     uint8_t rbuf[8];
-    int ret = jringbuf_read(targ->rb, targ->id, rbuf, 8, 0, 0);
+    int ret = jringbuf_read(targ->rb, targ->id, rbuf, 8, NULL, 0, 0);
     test_assert(ret == 8, "consumer read failed");
     return NULL;
 }
@@ -300,7 +312,7 @@ static void test_multi_consumer_shared(void)
 {
     printf("Test 7: Multi-consumer shared read\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, TEST_MAX_CONSUMERS,
+    jringbuf_t *rb = jringbuf_init1(TEST_CAPACITY, 1, TEST_MAX_CONSUMERS,
                                    0, 0, JRINGBUF_READ_SHARED);
     /* 添加 4 个消费者 */
     int cids[TEST_MAX_CONSUMERS] = {0};
@@ -313,7 +325,7 @@ static void test_multi_consumer_shared(void)
     /* 写入 40 字节 */
     uint8_t wdata[40];
     memset(wdata, 0x5A, 40);
-    int ret = jringbuf_write(rb, 0, wdata, 40, 0, 0, 0);
+    int ret = jringbuf_write(rb, 0, wdata, 40, 0, 0, NULL);
     test_assert(ret == 40, "write failed");
 
     /* 所有消费者同时读取 8 字节，共享读指针，总读出 32 字节 */
@@ -342,7 +354,7 @@ static void test_multi_consumer_shared(void)
 static jthread_ret_t exclusive_consumer(void *arg) {
     thread_arg_t *targ = (thread_arg_t*)arg;
     uint8_t rbuf[4];
-    int ret = jringbuf_read(targ->rb, targ->id, rbuf, 4, 0, 0);
+    int ret = jringbuf_read(targ->rb, targ->id, rbuf, 4, NULL, 0, 0);
     test_assert(ret == 4, "exclusive read failed");
     /* 验证数据内容（每个消费者应该读到相同的部分） */
     test_assert(rbuf[0] == 0, "data corruption");
@@ -353,7 +365,7 @@ static void test_multi_consumer_exclusive(void)
 {
     printf("Test 8: Multi-consumer exclusive read\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, TEST_MAX_CONSUMERS,
+    jringbuf_t *rb = jringbuf_init1(TEST_CAPACITY, 1, TEST_MAX_CONSUMERS,
                                    0, 0, JRINGBUF_READ_EXCLUSIVE);
     int cids[TEST_MAX_CONSUMERS] = {0};
     for (int i = 0; i < TEST_MAX_CONSUMERS; i++) {
@@ -364,7 +376,7 @@ static void test_multi_consumer_exclusive(void)
     /* 写入 16 字节，每个字节值为其索引 */
     uint8_t wdata[16];
     for (int i = 0; i < 16; i++) wdata[i] = (uint8_t)i;
-    int ret = jringbuf_write(rb, 0, wdata, 16, 0, 0, 0);
+    int ret = jringbuf_write(rb, 0, wdata, 16, 0, 0, NULL);
     test_assert(ret == 16, "write failed");
 
     /* 4 个消费者每人读 4 字节，独占读指针，空间在所有消费后才释放 */
@@ -394,7 +406,7 @@ static void test_hold_size(void)
 {
     printf("Test 9: hold_size history retention\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 2,
+    jringbuf_t *rb = jringbuf_init1(TEST_CAPACITY, 1, 2,
                                    TEST_HOLD_SIZE, 0, JRINGBUF_READ_EXCLUSIVE);
     int c1 = jringbuf_add_consumer(rb, 1); /* 从最旧开始 */
     test_assert(c1 >= 0, "add consumer 1 failed");
@@ -402,12 +414,12 @@ static void test_hold_size(void)
     /* 写入 60 字节 (capacity 64)，快写满 */
     uint8_t wdata[60];
     memset(wdata, 0xAA, 60);
-    int ret = jringbuf_write(rb, 0, wdata, 60, 0, 0, 0);
+    int ret = jringbuf_write(rb, 0, wdata, 60, 0, 0, NULL);
     test_assert(ret == 60, "write 60 failed");
 
     /* 消费者 c1 读取 30 字节 */
     uint8_t rbuf[30];
-    ret = jringbuf_read(rb, c1, rbuf, 30, 0, 0);
+    ret = jringbuf_read(rb, c1, rbuf, 30, NULL, 0, 0);
     test_assert(ret == 30, "read 30 failed");
 
     /* 此时 hold_size=16，min_read_index 被约束在 write_index - hold_size 之内，
@@ -423,7 +435,7 @@ static void test_hold_size(void)
    /* 再写入 30 字节，空间不够，但由于 hold_size 和消费者进度，无法写入 */
     uint8_t more[30];
     memset(more, 0xBB, 30);
-    ret = jringbuf_write(rb, 0, more, 30, 0, 0, 0);
+    ret = jringbuf_write(rb, 0, more, 30, 0, 0, NULL);
     test_assert(ret < 30, "write should fail due to hold_size + consumer lag");
 
     jringbuf_uninit(rb);
@@ -437,7 +449,7 @@ static void test_dynamic_del(void)
 {
     printf("Test 10: Dynamic add/del producers and consumers\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 3, 3, 0, 0, JRINGBUF_READ_EXCLUSIVE);
+    jringbuf_t *rb = jringbuf_init1(TEST_CAPACITY, 3, 3, 0, 0, JRINGBUF_READ_EXCLUSIVE);
 
     int p1 = jringbuf_add_producer(rb);
     int p2 = jringbuf_add_producer(rb);
@@ -466,7 +478,7 @@ static void test_drop_data(void)
 {
     printf("Test 11: drop_data interface\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 2, 0, 0, JRINGBUF_READ_EXCLUSIVE);
+    jringbuf_t *rb = jringbuf_init1(TEST_CAPACITY, 1, 2, 0, 0, JRINGBUF_READ_EXCLUSIVE);
     int c1 = jringbuf_add_consumer(rb, 1);
     int c2 = jringbuf_add_consumer(rb, 0); /* 从 write_index 开始，无历史 */
     test_assert(c1 >= 0 && c2 >= 0, "add consumers failed");
@@ -474,7 +486,7 @@ static void test_drop_data(void)
     /* 写入 32 字节 */
     uint8_t wdata[32];
     memset(wdata, 0xCC, 32);
-    int ret = jringbuf_write(rb, 0, wdata, 32, 0, 0, 0);
+    int ret = jringbuf_write(rb, 0, wdata, 32, 0, 0, NULL);
     test_assert(ret == 32, "write failed");
 
     /* c2 丢弃所有数据 */
@@ -497,7 +509,7 @@ static jthread_ret_t slow_reader(void *arg) {
     jringbuf_t *rb = (jringbuf_t*)arg;
     uint8_t buf[1];
     /* 使用无限阻塞读，等待 uninit 唤醒 */
-    int ret = jringbuf_read(rb, 0, buf, 1, JRINGBUF_BLOCK, -1);
+    int ret = jringbuf_read(rb, 0, buf, 1, NULL, JRINGBUF_BLOCK, -1);
     test_assert(ret == -1, "should fail due to uninit");
     return NULL;
 }
@@ -506,7 +518,7 @@ static void test_uninit_safety(void)
 {
     printf("Test 12: Safe uninit with waiting threads\n");
 
-    jringbuf_t *rb = jringbuf_init(TEST_CAPACITY, 1, 1, 0, 0, JRINGBUF_READ_SHARED);
+    jringbuf_t *rb = jringbuf_init1(TEST_CAPACITY, 1, 1, 0, 0, JRINGBUF_READ_SHARED);
     jthread_t reader;
     jthread_create(&reader, NULL, slow_reader, rb);
 

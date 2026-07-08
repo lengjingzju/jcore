@@ -141,7 +141,8 @@ cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"
 cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jpthread_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jpthread_test.exe
 cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jsock_client_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jsock_client_test.exe
 cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jstring_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jstring_test.exe
-cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jringbuf_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jringbuf_test.exe</Command>
+cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jringbuf_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jringbuf_test.exe
+cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"$(ProjectDir)..\..\common" /I"$(ProjectDir)..\..\windows"  ..\..\test\jringdata_test.c /link $(SolutionDir)$(Platform)\$(Configuration)\jcore.lib ws2_32.lib /OUT:$(SolutionDir)$(Platform)\$(Configuration)\jringdata_test.exe</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -160,6 +161,7 @@ cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"
     <ClInclude Include="..\..\common\jpthread.h" />
     <ClInclude Include="..\..\common\jrbtree.h" />
     <ClInclude Include="..\..\common\jringbuf.h" />
+    <ClInclude Include="..\..\common\jringdata.h" />
     <ClInclude Include="..\..\common\jsocket.h" />
     <ClInclude Include="..\..\common\jstring.h" />
     <ClInclude Include="..\..\common\jvector.h" />
@@ -181,6 +183,7 @@ cl /std:c11 /MT /EHsc /utf-8 /D_CRT_SECURE_NO_WARNINGS /DWIN32_LEAN_AND_MEAN /I"
     <ClCompile Include="..\..\common\jpthread.c" />
     <ClCompile Include="..\..\common\jrbtree.c" />
     <ClCompile Include="..\..\common\jringbuf.c" />
+    <ClCompile Include="..\..\common\jringdata.c" />
     <ClCompile Include="..\..\common\jsocket.c" />
     <ClCompile Include="..\..\common\jstring.c" />
     <ClCompile Include="..\..\common\jvector.c" />
