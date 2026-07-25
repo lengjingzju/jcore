@@ -710,7 +710,9 @@ redo:
         }
 
         /* 校验生产者有效性 */
-        if (rd->max_producers > 1 && !JRD_PROD_ACT(rd)[producer_id]) {
+        if (rd->max_producers > 1 &&
+            (producer_id < 0 || (uint32_t)producer_id >= rd->max_producers
+                || !JRD_PROD_ACT(rd)[producer_id])) {
             goto err;
         }
 

@@ -80,24 +80,14 @@ static jheap_mgr_t s_jheap_mgr;
 static int data_key_cmp(struct jrbtree *node, const void *key)
 {
     jheap_data_t *data = jrbtree_entry(node, jheap_data_t, tree);
-
-    if (data->ptr > key)
-        return 1;
-    if (data->ptr < key)
-        return -1;
-    return 0;
+    return (data->ptr > key) - (data->ptr < key);
 }
 
 static int data_node_cmp(struct jrbtree *a, struct jrbtree *b)
 {
     jheap_data_t *adata = jrbtree_entry(a, jheap_data_t, tree);
     jheap_data_t *bdata = jrbtree_entry(b, jheap_data_t, tree);
-
-    if (adata->ptr > bdata->ptr)
-        return 1;
-    if (adata->ptr < bdata->ptr)
-        return -1;
-    return 0;
+    return (adata->ptr > bdata->ptr) - (adata->ptr < bdata->ptr);
 }
 
 static int node_key_cmp(struct jrbtree *a, const void *key)
@@ -105,45 +95,22 @@ static int node_key_cmp(struct jrbtree *a, const void *key)
     jheap_node_t *adata = jrbtree_entry(a, jheap_node_t, tree);
     const jheap_nkey_t *bdata = (const jheap_nkey_t *)key;
 
-    if (adata->size > bdata->size)
-        return 1;
-    if (adata->size < bdata->size)
-        return -1;
-
-    if (adata->func > bdata->func)
-        return 1;
-    if (adata->func < bdata->func)
-        return -1;
-
-    if (adata->line > bdata->line)
-        return 1;
-    if (adata->line < bdata->line)
-        return -1;
-
-    return 0;
+    if (adata->size != bdata->size)
+        return (adata->size > bdata->size) - (adata->size < bdata->size);
+    if (adata->func != bdata->func)
+        return (adata->func > bdata->func) - (adata->func < bdata->func);
+    return adata->line - bdata->line;
 }
 
 static int node_node_cmp(struct jrbtree *a, struct jrbtree *b)
 {
     jheap_node_t *adata = jrbtree_entry(a, jheap_node_t, tree);
     jheap_node_t *bdata = jrbtree_entry(b, jheap_node_t, tree);
-
-    if (adata->size > bdata->size)
-        return 1;
-    if (adata->size < bdata->size)
-        return -1;
-
-    if (adata->func > bdata->func)
-        return 1;
-    if (adata->func < bdata->func)
-        return -1;
-
-    if (adata->line > bdata->line)
-        return 1;
-    if (adata->line < bdata->line)
-        return -1;
-
-    return 0;
+    if (adata->size != bdata->size)
+        return (adata->size > bdata->size) - (adata->size < bdata->size);
+    if (adata->func != bdata->func)
+        return (adata->func > bdata->func) - (adata->func < bdata->func);
+    return adata->line - bdata->line;
 }
 
 static jthread_ret_t jheap_worker(void *arg)

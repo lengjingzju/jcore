@@ -214,7 +214,7 @@ int jringdata_del_producer(jringdata_t *rd, int producer_id);
 /**
  * @brief   添加一个消费者（多消费者有效）
  * @param   rd          [INOUT] 管理器指针
- * @param   use_ridx    [IN]    初始index是使用使用min_read_index(1)还是write_index(0)
+ * @param   use_ridx    [IN]    初始index是使用min_read_index(1)还是write_index(0)
  * @return  成功返回分配的消费者 ID（0 ~ max_consumers-1）；无可分配槽位返回 -1
  * @note    JRINGDATA_READ_EXCLUSIVE模式时use_ridx才有效
  */

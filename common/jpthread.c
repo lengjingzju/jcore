@@ -102,11 +102,8 @@ static int _timer_prio_cmp(void *a, void *b)
     if (typea != typeb)
         return typea - typeb;
     if (ta->wake_nt.sec != tb->wake_nt.sec)
-        return ta->wake_nt.sec < tb->wake_nt.sec ? -1 : 1;
-    if (ta->wake_nt.nsec != tb->wake_nt.nsec)
-        return ta->wake_nt.nsec < tb->wake_nt.nsec ? -1 : 1;
-
-    return 0;
+        return (ta->wake_nt.sec > tb->wake_nt.sec) - (ta->wake_nt.sec < tb->wake_nt.sec);
+    return (ta->wake_nt.nsec > tb->wake_nt.nsec) - (ta->wake_nt.nsec < tb->wake_nt.nsec);
 }
 
 /*

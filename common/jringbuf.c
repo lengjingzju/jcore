@@ -337,7 +337,9 @@ redo:
         }
 
         /* 校验生产者有效性 */
-        if (rb->max_producers > 1 && !JRB_PROD_ACT(rb)[producer_id]) {
+        if (rb->max_producers > 1
+            && (producer_id < 0 || (uint32_t)producer_id >= rb->max_producers
+                || !JRB_PROD_ACT(rb)[producer_id])) {
             goto err;
         }
 

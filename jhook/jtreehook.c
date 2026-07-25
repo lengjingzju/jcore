@@ -230,24 +230,14 @@ static void jhook_backtrace(jhook_node_t *node)
 static int data_key_cmp(struct jtree *node, const void *key)
 {
     jhook_data_t *data = jtree_entry(node, jhook_data_t, tree);
-
-    if (data->ptr > key)
-        return 1;
-    if (data->ptr < key)
-        return -1;
-    return 0;
+    return (data->ptr > key) - (data->ptr < key);
 }
 
 static int data_node_cmp(struct jtree *a, struct jtree *b)
 {
     jhook_data_t *adata = jtree_entry(a, jhook_data_t, tree);
     jhook_data_t *bdata = jtree_entry(b, jhook_data_t, tree);
-
-    if (adata->ptr > bdata->ptr)
-        return 1;
-    if (adata->ptr < bdata->ptr)
-        return -1;
-    return 0;
+    return (adata->ptr > bdata->ptr) - (adata->ptr < bdata->ptr);
 }
 
 static int node_key_cmp(struct jtree *a, const void *key)
@@ -255,11 +245,8 @@ static int node_key_cmp(struct jtree *a, const void *key)
     jhook_node_t *adata = jtree_entry(a, jhook_node_t, tree);
     const jhook_nkey_t *bdata = (const jhook_nkey_t *)key;
 
-    if (adata->size > bdata->size)
-        return 1;
-    if (adata->size < bdata->size)
-        return -1;
-
+    if (adata->size != bdata->size)
+        return (adata->size > bdata->size) - (adata->size < bdata->size);
     return memcmp(adata->addrs, bdata->addrs, JHOOK_DEPTH * sizeof(void *));
 }
 
@@ -267,12 +254,8 @@ static int node_node_cmp(struct jtree *a, struct jtree *b)
 {
     jhook_node_t *adata = jtree_entry(a, jhook_node_t, tree);
     jhook_node_t *bdata = jtree_entry(b, jhook_node_t, tree);
-
-    if (adata->size > bdata->size)
-        return 1;
-    if (adata->size < bdata->size)
-        return -1;
-
+    if (adata->size != bdata->size)
+        return (adata->size > bdata->size) - (adata->size < bdata->size);
     return memcmp(adata->addrs, bdata->addrs, JHOOK_DEPTH * sizeof(void *));
 }
 
